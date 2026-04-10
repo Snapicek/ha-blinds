@@ -9,5 +9,5 @@
   "requirements": [],
   "version": "1.10.0",
   "config_flow": true,
-  "icon": "mdi:blinds"
+  "icon": "mdi:window-shutter"
 }
