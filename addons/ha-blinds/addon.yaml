@@ -1,6 +1,6 @@
 name: HA Blinds
 description: UI-configurable Home Assistant integration for tilt blinds controlled by sun position, window azimuth, lux, and seasonal rules.
-version: 1.10.0
+version: 1.16.0
 slug: ha-blinds
 maintainers:
   - Snapicek
