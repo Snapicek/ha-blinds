@@ -8,9 +8,13 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceRegistry
+from homeassistant.helpers.entity_registry import EntityRegistry
+from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.const import STATE_UNKNOWN
 
 from .const import (
     CONF_COVER_ENTITY,
@@ -34,6 +38,7 @@ from .const import (
     CONF_WINDOW_VIEW_RIGHT,
     CONF_WINTER_PRIVACY_HOUR,
     DEFAULTS,
+    DOMAIN,
 )
 from .logic import DecisionConfig, DecisionEngine, DecisionInputs
 
@@ -45,6 +50,8 @@ class _RuntimeState:
     paused_until: datetime | None = None
     last_reason: str = "startup"
     last_target: int | None = None
+    last_decision_time: datetime | None = None
+    error_count: int = 0
 
 
 class HaBlindsController:
@@ -56,9 +63,11 @@ class HaBlindsController:
         self._runtime = _RuntimeState()
         self._unsub_interval = None
         self._engine = DecisionEngine(self._decision_config())
+        self._device_id = None
 
     async def async_start(self) -> None:
-        """Start periodic evaluation."""
+        """Start periodic evaluation and create device."""
+        self._setup_device()
         tick = int(self._cfg(CONF_TICK_MINUTES))
         self._unsub_interval = async_track_time_interval(
             self.hass,
@@ -66,23 +75,53 @@ class HaBlindsController:
             timedelta(minutes=max(1, tick)),
         )
         await self.async_evaluate_now()
+        _LOGGER.info("HA Blinds controller started for %s", self.entry.entry_id)
 
     async def async_stop(self) -> None:
         """Stop periodic evaluation."""
         if self._unsub_interval is not None:
             self._unsub_interval()
             self._unsub_interval = None
+        _LOGGER.info("HA Blinds controller stopped for %s", self.entry.entry_id)
+
+    def _setup_device(self) -> None:
+        """Create device entry in Home Assistant device registry."""
+        from homeassistant.helpers import device_registry as dr
+
+        device_registry = dr.async_get(self.hass)
+        cover_entity = str(self._cfg(CONF_COVER_ENTITY))
+
+        self._device_id = device_registry.async_get_or_create(
+            config_entry_id=self.entry.entry_id,
+            identifiers={(DOMAIN, self.entry.entry_id)},
+            name=f"HA Blinds - {cover_entity}",
+            manufacturer="HA Blinds",
+            model="Automation Controller",
+            suggested_area=self._extract_area_from_entity(cover_entity),
+        ).id
+        _LOGGER.debug("Device created: %s", self._device_id)
+
+    @staticmethod
+    def _extract_area_from_entity(entity_id: str) -> str | None:
+        """Extract area hint from entity name if possible."""
+        parts = entity_id.split(".")
+        if len(parts) > 1:
+            friendly_name = parts[1].replace("_", " ").title()
+            return friendly_name
+        return None
 
     async def async_pause(self, minutes: int | None = None) -> None:
         """Pause automation for given minutes or configured default."""
         duration = minutes if minutes and minutes > 0 else int(self._cfg(CONF_MANUAL_OVERRIDE_MINUTES))
         self._runtime.paused_until = dt_util.now() + timedelta(minutes=duration)
         _LOGGER.info("HA Blinds paused for %s minutes on entry %s", duration, self.entry.entry_id)
+        self._update_state_attributes()
 
     async def async_resume(self) -> None:
         """Resume automation immediately."""
         self._runtime.paused_until = None
         _LOGGER.info("HA Blinds resumed on entry %s", self.entry.entry_id)
+        self._update_state_attributes()
 
     async def async_evaluate_now(self) -> None:
         """Force immediate re-evaluation."""
@@ -98,8 +137,14 @@ class HaBlindsController:
         cover_state = self.hass.states.get(cover_entity)
         sun_state = self.hass.states.get("sun.sun")
         if cover_state is None or sun_state is None:
+            self._runtime.error_count += 1
+            _LOGGER.warning("Missing state: cover=%s, sun=%s (error #%d)",
+                          cover_state is not None, sun_state is not None, self._runtime.error_count)
+            if self._runtime.error_count > 10:
+                _LOGGER.error("Too many errors, check if cover and sun entities exist")
             return
 
+        self._runtime.error_count = 0
         self._engine.config = self._decision_config()
 
         current_position = int(cover_state.attributes.get("current_position", 75))
@@ -125,8 +170,10 @@ class HaBlindsController:
         )
         result = self._engine.evaluate(inputs)
         self._runtime.last_reason = result.reason
+        self._runtime.last_decision_time = now
 
         if not result.should_move:
+            self._update_state_attributes()
             return
 
         step = max(1, int(self._cfg(CONF_MAX_STEP_PER_TICK)))
@@ -147,12 +194,38 @@ class HaBlindsController:
         )
         self._runtime.last_target = target
         _LOGGER.debug(
-            "HA Blinds entry=%s reason=%s current=%s target=%s sun_at_window=%s",
+            "HA Blinds entry=%s reason=%s current=%s target=%s sun_at_window=%s lux=%s temp=%s",
             self.entry.entry_id,
             result.reason,
             current_position,
             target,
             result.sun_at_window,
+            lux,
+            temperature,
+        )
+        self._update_state_attributes()
+
+    def _update_state_attributes(self) -> None:
+        """Update diagnostic attributes in state."""
+        if not self._runtime.last_decision_time:
+            return
+
+        cover_entity = str(self._cfg(CONF_COVER_ENTITY))
+        paused_until_str = None
+        if self._runtime.paused_until:
+            paused_until_str = self._runtime.paused_until.isoformat()
+
+        self.hass.states.async_set(
+            f"{DOMAIN}.{self.entry.entry_id}_status",
+            "active" if not self._runtime.paused_until else "paused",
+            attributes={
+                "last_reason": self._runtime.last_reason,
+                "last_target": self._runtime.last_target,
+                "last_decision": self._runtime.last_decision_time.isoformat() if self._runtime.last_decision_time else None,
+                "paused_until": paused_until_str,
+                "cover_entity": cover_entity,
+                "error_count": self._runtime.error_count,
+            },
         )
 
     def _cfg(self, key: str) -> Any:
@@ -188,3 +261,21 @@ class HaBlindsController:
             return float(state.state)
         except ValueError:
             return None
+
+    @property
+    def device_id(self) -> str | None:
+        """Return the device ID."""
+        return self._device_id
+
+    def get_status_dict(self) -> dict[str, Any]:
+        """Return status information for diagnostics."""
+        return {
+            "entry_id": self.entry.entry_id,
+            "cover_entity": str(self._cfg(CONF_COVER_ENTITY)),
+            "last_reason": self._runtime.last_reason,
+            "last_target": self._runtime.last_target,
+            "paused_until": self._runtime.paused_until.isoformat() if self._runtime.paused_until else None,
+            "last_decision_time": self._runtime.last_decision_time.isoformat() if self._runtime.last_decision_time else None,
+            "error_count": self._runtime.error_count,
+        }
+

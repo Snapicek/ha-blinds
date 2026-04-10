@@ -9,5 +9,7 @@
   "requirements": [],
   "version": "1.10.0",
   "config_flow": true,
-  "icon": "mdi:window-shutter"
+  "icon": "mdi:window-shutter",
+  "issue_tracker": "https://github.com/Snapicek/ha-blinds/issues",
+  "homeassistant": "2026.1.0"
 }

@@ -102,7 +102,15 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self.context["user_data"] = user_input
             return await self.async_step_options()
 
-        return self.async_show_form(step_id="user", data_schema=_entry_schema({}), errors={})
+        errors = {}
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_entry_schema({}),
+            errors=errors,
+            description_placeholders={
+                "setup_info": "Select your blind cover entity, a lux sensor, and define your window orientation.",
+            },
+        )
 
     async def async_step_options(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "HA Blinds Setup",
-        "description": "Choose entities and window orientation.",
+        "description": "Choose entities and window orientation.\n\nThis automation will control your blinds based on sun position, brightness (lux), and temperature.",
         "data": {
           "cover_entity": "Blinds cover entity",
           "lux_sensor": "Lux sensor",
@@ -20,7 +20,7 @@
       },
       "options": {
         "title": "HA Blinds Tuning",
-        "description": "Set thresholds, debounce, and movement profile.",
+        "description": "Set thresholds, debounce, and movement profile. Changes take effect immediately.",
         "data": {
           "lux_close_summer": "Summer Close Lux",
           "lux_open_summer": "Summer Open Lux",
@@ -43,7 +43,54 @@
           "lux_close_winter": "Lux threshold to close blinds in winter. Winter sun is lower, might be lower than summer. Recommended: 20000.",
           "lux_open_winter": "Lux threshold to open blinds in winter. Recommended: 12000.",
           "debounce_minutes": "Minutes to wait before reacting to lux changes to prevent flapping. Recommended: 5-10.",
-          "tick_minutes": "Frequency of checking/updating blind position. Recommended: 5.",
+          "tick_minutes": "Frequency of checking/updating blind position in minutes. Recommended: 5.",
+          "max_step_per_tick": "Max position change per tick to make movement smoother. Recommended: 10.",
+          "heat_start_hour": "Hour to start heat protection mode (0-23). Recommended: 10.",
+          "heat_end_hour": "Hour to end heat protection mode (0-23). Recommended: 17.",
+          "heat_position": "Blind position during heat protection (0-100). Recommended: 20.",
+          "temp_threshold": "Temperature above which heat protection activates if an indoor temp sensor is provided. Recommended: 24.0.",
+          "winter_privacy_hour": "Hour to close blinds for privacy in winter (0-23). Recommended: 16.",
+          "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19.",
+          "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Cover entity is already configured."
+    },
+    "error": {
+      "invalid_azimuth": "Azimuth must be between 0 and 359.",
+      "invalid_angle": "Angle must be between 0 and 180."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA Blinds Options",
+        "description": "Adjust thresholds and timing without re-adding integration. All changes take effect immediately.",
+        "data": {
+          "lux_close_summer": "Summer Close Lux",
+          "lux_open_summer": "Summer Open Lux",
+          "lux_close_winter": "Winter Close Lux",
+          "lux_open_winter": "Winter Open Lux",
+          "debounce_minutes": "Debounce (minutes)",
+          "tick_minutes": "Tick (minutes)",
+          "max_step_per_tick": "Max step per tick (%)",
+          "heat_start_hour": "Heat start hour",
+          "heat_end_hour": "Heat end hour",
+          "heat_position": "Heat position (%)",
+          "temp_threshold": "Temperature threshold (°C)",
+          "winter_privacy_hour": "Winter privacy hour",
+          "summer_privacy_hour": "Summer privacy hour",
+          "manual_override_minutes": "Manual override (minutes)"
+        },
+        "data_description": {
+          "lux_close_summer": "Lux threshold to close blinds in summer. Higher = close only in bright sun. Recommended: 35000.",
+          "lux_open_summer": "Lux threshold to open blinds in summer. Should be lower than close lux. Recommended: 20000.",
+          "lux_close_winter": "Lux threshold to close blinds in winter. Winter sun is lower, might be lower than summer. Recommended: 20000.",
+          "lux_open_winter": "Lux threshold to open blinds in winter. Recommended: 12000.",
+          "debounce_minutes": "Minutes to wait before reacting to lux changes to prevent flapping. Recommended: 5-10.",
+          "tick_minutes": "Frequency of checking/updating blind position in minutes. Recommended: 5.",
           "max_step_per_tick": "Max position change per tick to make movement smoother. Recommended: 10.",
           "heat_start_hour": "Hour to start heat protection mode (0-23). Recommended: 10.",
           "heat_end_hour": "Hour to end heat protection mode (0-23). Recommended: 17.",
@@ -56,42 +103,38 @@
       }
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "HA Blinds Options",
-        "description": "Adjust thresholds and timing without re-adding integration.",
-        "data": {
-          "lux_close_summer": "Summer Close Lux",
-          "lux_open_summer": "Summer Open Lux",
-          "lux_close_winter": "Winter Close Lux",
-          "lux_open_winter": "Winter Open Lux",
-          "debounce_minutes": "Debounce (minutes)",
-          "tick_minutes": "Tick (minutes)",
-          "max_step_per_tick": "Max step per tick (%)",
-          "heat_start_hour": "Heat start hour",
-          "heat_end_hour": "Heat end hour",
-          "heat_position": "Heat position (%)",
-          "temp_threshold": "Temperature threshold (°C)",
-          "winter_privacy_hour": "Winter privacy hour",
-          "summer_privacy_hour": "Summer privacy hour",
-          "manual_override_minutes": "Manual override (minutes)"
+  "services": {
+    "pause": {
+      "name": "Pause Automation",
+      "description": "Pause one or all HA Blinds entries for a period.",
+      "fields": {
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID. If omitted, applies to all entries."
         },
-        "data_description": {
-          "lux_close_summer": "Lux threshold to close blinds in summer. Higher = close only in bright sun. Recommended: 35000.",
-          "lux_open_summer": "Lux threshold to open blinds in summer. Should be lower than close lux. Recommended: 20000.",
-          "lux_close_winter": "Lux threshold to close blinds in winter. Winter sun is lower, might be lower than summer. Recommended: 20000.",
-          "lux_open_winter": "Lux threshold to open blinds in winter. Recommended: 12000.",
-          "debounce_minutes": "Minutes to wait before reacting to lux changes to prevent flapping. Recommended: 5-10.",
-          "tick_minutes": "Frequency of checking/updating blind position. Recommended: 5.",
-          "max_step_per_tick": "Max position change per tick to make movement smoother. Recommended: 10.",
-          "heat_start_hour": "Hour to start heat protection mode (0-23). Recommended: 10.",
-          "heat_end_hour": "Hour to end heat protection mode (0-23). Recommended: 17.",
-          "heat_position": "Blind position during heat protection (0-100). Recommended: 20.",
-          "temp_threshold": "Temperature above which heat protection activates if an indoor temp sensor is provided. Recommended: 24.0.",
-          "winter_privacy_hour": "Hour to close blinds for privacy in winter (0-23). Recommended: 16.",
-          "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19.",
-          "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
+        "minutes": {
+          "name": "Minutes",
+          "description": "Optional override duration in minutes."
+        }
+      }
+    },
+    "resume": {
+      "name": "Resume Automation",
+      "description": "Resume one or all HA Blinds entries immediately.",
+      "fields": {
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID. If omitted, applies to all entries."
+        }
+      }
+    },
+    "evaluate_now": {
+      "name": "Evaluate Now",
+      "description": "Trigger immediate evaluation for one or all HA Blinds entries.",
+      "fields": {
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID. If omitted, applies to all entries."
         }
       }
     }

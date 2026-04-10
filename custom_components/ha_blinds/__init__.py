@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from .const import (
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from .coordinator import HaBlindsController
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -48,14 +51,17 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         minutes = call.data.get(ATTR_MINUTES)
         for controller in _iter_targets(call):
             await controller.async_pause(minutes)
+        _LOGGER.debug("Pause service called for %s entries", len(_iter_targets(call)))
 
     async def _handle_resume(call: ServiceCall) -> None:
         for controller in _iter_targets(call):
             await controller.async_resume()
+        _LOGGER.debug("Resume service called for %s entries", len(_iter_targets(call)))
 
     async def _handle_evaluate(call: ServiceCall) -> None:
         for controller in _iter_targets(call):
             await controller.async_evaluate_now()
+        _LOGGER.debug("Evaluate now service called for %s entries", len(_iter_targets(call)))
 
     if not hass.services.has_service(DOMAIN, SERVICE_PAUSE):
         hass.services.async_register(
@@ -76,6 +82,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             _handle_evaluate,
             schema=SERVICE_SCHEMA_ENTRY,
         )
+        _LOGGER.debug("HA Blinds services registered")
 
     return True
 
@@ -89,6 +96,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = controller
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
+    _LOGGER.info("HA Blinds entry %s setup complete", entry.entry_id)
     return True
 
 
@@ -99,9 +107,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     controller: HaBlindsController | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if controller:
         await controller.async_stop()
+        _LOGGER.info("HA Blinds entry %s unloaded", entry.entry_id)
     return True
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Reload a config entry."""
+    await async_unload_entry(hass, entry)
+    return await async_setup_entry(hass, entry)
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry when options change."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    await async_reload_entry(hass, entry)
