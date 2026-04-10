@@ -6,7 +6,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
+from homeassistant.helpers.selector import selector
 
 from .const import (
     CONF_COVER_ENTITY,
@@ -35,14 +35,16 @@ from .const import (
 
 
 def _num_selector(min_value: float, max_value: float, step: float = 1) -> dict[str, Any]:
-    return {
-        "number": {
-            "min": min_value,
-            "max": max_value,
-            "step": step,
-            "mode": "box",
+    return selector(
+        {
+            "number": {
+                "min": min_value,
+                "max": max_value,
+                "step": step,
+                "mode": "box",
+            }
         }
-    }
+    )
 
 
 def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -51,15 +53,15 @@ def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(
                 CONF_COVER_ENTITY,
                 default=defaults.get(CONF_COVER_ENTITY),
-            ): EntitySelector(EntitySelectorConfig(domain="cover")),
+            ): selector({"entity": {"domain": "cover"}}),
             vol.Required(
                 CONF_LUX_SENSOR,
                 default=defaults.get(CONF_LUX_SENSOR),
-            ): EntitySelector(EntitySelectorConfig(domain="sensor")),
+            ): selector({"entity": {"domain": "sensor"}}),
             vol.Optional(
                 CONF_TEMP_SENSOR,
-                default=defaults.get(CONF_TEMP_SENSOR, ""),
-            ): EntitySelector(EntitySelectorConfig(domain="sensor")),
+                default=defaults.get(CONF_TEMP_SENSOR),
+            ): selector({"entity": {"domain": "sensor"}}),
             vol.Required(
                 CONF_WINDOW_AZIMUTH,
                 default=defaults.get(CONF_WINDOW_AZIMUTH, DEFAULTS[CONF_WINDOW_AZIMUTH]),
@@ -103,15 +105,13 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
-        errors: dict[str, str] = {}
-
         if user_input is not None:
             await self.async_set_unique_id(user_input[CONF_COVER_ENTITY])
             self._abort_if_unique_id_configured()
             self.context["user_data"] = user_input
             return await self.async_step_options()
 
-        return self.async_show_form(step_id="user", data_schema=_entry_schema({}), errors=errors)
+        return self.async_show_form(step_id="user", data_schema=_entry_schema({}), errors={})
 
     async def async_step_options(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
@@ -126,7 +126,7 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 options=user_input,
             )
 
-        return self.async_show_form(step_id="options", data_schema=_options_schema(DEFAULTS))
+        return self.async_show_form(step_id="options", data_schema=_options_schema(DEFAULTS), errors={})
 
     @staticmethod
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
@@ -146,4 +146,4 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         defaults = {**DEFAULTS, **self.config_entry.options}
-        return self.async_show_form(step_id="init", data_schema=_options_schema(defaults))
+        return self.async_show_form(step_id="init", data_schema=_options_schema(defaults), errors={})
