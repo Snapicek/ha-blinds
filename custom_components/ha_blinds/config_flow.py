@@ -6,7 +6,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.helpers.selector import selector
+from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_COVER_ENTITY,
@@ -34,46 +34,24 @@ from .const import (
 )
 
 
-def _num_selector(min_value: float, max_value: float, step: float = 1) -> dict[str, Any]:
-    return selector(
-        {
-            "number": {
-                "min": min_value,
-                "max": max_value,
-                "step": step,
-                "mode": "box",
-            }
-        }
-    )
-
-
 def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required(
-                CONF_COVER_ENTITY,
-                default=defaults.get(CONF_COVER_ENTITY),
-            ): selector({"entity": {"domain": "cover"}}),
-            vol.Required(
-                CONF_LUX_SENSOR,
-                default=defaults.get(CONF_LUX_SENSOR),
-            ): selector({"entity": {"domain": "sensor"}}),
-            vol.Optional(
-                CONF_TEMP_SENSOR,
-                default=defaults.get(CONF_TEMP_SENSOR),
-            ): selector({"entity": {"domain": "sensor"}}),
+            vol.Required(CONF_COVER_ENTITY, default=defaults.get(CONF_COVER_ENTITY, "cover.")): cv.entity_id,
+            vol.Required(CONF_LUX_SENSOR, default=defaults.get(CONF_LUX_SENSOR, "sensor.")): cv.entity_id,
+            vol.Optional(CONF_TEMP_SENSOR, default=defaults.get(CONF_TEMP_SENSOR, "")): vol.Any("", cv.entity_id),
             vol.Required(
                 CONF_WINDOW_AZIMUTH,
-                default=defaults.get(CONF_WINDOW_AZIMUTH, DEFAULTS[CONF_WINDOW_AZIMUTH]),
-            ): _num_selector(0, 359, 1),
+                default=int(defaults.get(CONF_WINDOW_AZIMUTH, DEFAULTS[CONF_WINDOW_AZIMUTH])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=359)),
             vol.Required(
                 CONF_WINDOW_VIEW_LEFT,
-                default=defaults.get(CONF_WINDOW_VIEW_LEFT, DEFAULTS[CONF_WINDOW_VIEW_LEFT]),
-            ): _num_selector(0, 180, 1),
+                default=int(defaults.get(CONF_WINDOW_VIEW_LEFT, DEFAULTS[CONF_WINDOW_VIEW_LEFT])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
             vol.Required(
                 CONF_WINDOW_VIEW_RIGHT,
-                default=defaults.get(CONF_WINDOW_VIEW_RIGHT, DEFAULTS[CONF_WINDOW_VIEW_RIGHT]),
-            ): _num_selector(0, 180, 1),
+                default=int(defaults.get(CONF_WINDOW_VIEW_RIGHT, DEFAULTS[CONF_WINDOW_VIEW_RIGHT])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
         }
     )
 
@@ -81,20 +59,20 @@ def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
 def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required(CONF_LUX_CLOSE_SUMMER, default=defaults.get(CONF_LUX_CLOSE_SUMMER, DEFAULTS[CONF_LUX_CLOSE_SUMMER])): _num_selector(1000, 120000, 500),
-            vol.Required(CONF_LUX_OPEN_SUMMER, default=defaults.get(CONF_LUX_OPEN_SUMMER, DEFAULTS[CONF_LUX_OPEN_SUMMER])): _num_selector(500, 120000, 500),
-            vol.Required(CONF_LUX_CLOSE_WINTER, default=defaults.get(CONF_LUX_CLOSE_WINTER, DEFAULTS[CONF_LUX_CLOSE_WINTER])): _num_selector(500, 120000, 500),
-            vol.Required(CONF_LUX_OPEN_WINTER, default=defaults.get(CONF_LUX_OPEN_WINTER, DEFAULTS[CONF_LUX_OPEN_WINTER])): _num_selector(500, 120000, 500),
-            vol.Required(CONF_DEBOUNCE_MINUTES, default=defaults.get(CONF_DEBOUNCE_MINUTES, DEFAULTS[CONF_DEBOUNCE_MINUTES])): _num_selector(1, 30, 1),
-            vol.Required(CONF_TICK_MINUTES, default=defaults.get(CONF_TICK_MINUTES, DEFAULTS[CONF_TICK_MINUTES])): _num_selector(1, 30, 1),
-            vol.Required(CONF_MAX_STEP_PER_TICK, default=defaults.get(CONF_MAX_STEP_PER_TICK, DEFAULTS[CONF_MAX_STEP_PER_TICK])): _num_selector(1, 50, 1),
-            vol.Required(CONF_HEAT_START_HOUR, default=defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR])): _num_selector(0, 23, 1),
-            vol.Required(CONF_HEAT_END_HOUR, default=defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR])): _num_selector(0, 23, 1),
-            vol.Required(CONF_HEAT_POSITION, default=defaults.get(CONF_HEAT_POSITION, DEFAULTS[CONF_HEAT_POSITION])): _num_selector(0, 100, 1),
-            vol.Required(CONF_TEMP_THRESHOLD, default=defaults.get(CONF_TEMP_THRESHOLD, DEFAULTS[CONF_TEMP_THRESHOLD])): _num_selector(10, 40, 0.5),
-            vol.Required(CONF_WINTER_PRIVACY_HOUR, default=defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR])): _num_selector(0, 23, 1),
-            vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])): _num_selector(0, 23, 1),
-            vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES])): _num_selector(5, 240, 5),
+            vol.Required(CONF_LUX_CLOSE_SUMMER, default=int(defaults.get(CONF_LUX_CLOSE_SUMMER, DEFAULTS[CONF_LUX_CLOSE_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=1000, max=120000)),
+            vol.Required(CONF_LUX_OPEN_SUMMER, default=int(defaults.get(CONF_LUX_OPEN_SUMMER, DEFAULTS[CONF_LUX_OPEN_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
+            vol.Required(CONF_LUX_CLOSE_WINTER, default=int(defaults.get(CONF_LUX_CLOSE_WINTER, DEFAULTS[CONF_LUX_CLOSE_WINTER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
+            vol.Required(CONF_LUX_OPEN_WINTER, default=int(defaults.get(CONF_LUX_OPEN_WINTER, DEFAULTS[CONF_LUX_OPEN_WINTER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
+            vol.Required(CONF_DEBOUNCE_MINUTES, default=int(defaults.get(CONF_DEBOUNCE_MINUTES, DEFAULTS[CONF_DEBOUNCE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+            vol.Required(CONF_TICK_MINUTES, default=int(defaults.get(CONF_TICK_MINUTES, DEFAULTS[CONF_TICK_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+            vol.Required(CONF_MAX_STEP_PER_TICK, default=int(defaults.get(CONF_MAX_STEP_PER_TICK, DEFAULTS[CONF_MAX_STEP_PER_TICK]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
+            vol.Required(CONF_HEAT_START_HOUR, default=int(defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=23)),
+            vol.Required(CONF_HEAT_END_HOUR, default=int(defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=23)),
+            vol.Required(CONF_HEAT_POSITION, default=int(defaults.get(CONF_HEAT_POSITION, DEFAULTS[CONF_HEAT_POSITION]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+            vol.Required(CONF_TEMP_THRESHOLD, default=float(defaults.get(CONF_TEMP_THRESHOLD, DEFAULTS[CONF_TEMP_THRESHOLD]))): vol.All(vol.Coerce(float), vol.Range(min=10, max=40)),
+            vol.Required(CONF_WINTER_PRIVACY_HOUR, default=int(defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=23)),
+            vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=int(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=23)),
+            vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
         }
     )
 
