@@ -6,7 +6,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig, NumberSelector, NumberSelectorConfig, NumberSelectorMode
+from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
 
 from .const import (
     CONF_COVER_ENTITY,
@@ -34,6 +34,17 @@ from .const import (
 )
 
 
+def _num_selector(min_value: float, max_value: float, step: float = 1) -> dict[str, Any]:
+    return {
+        "number": {
+            "min": min_value,
+            "max": max_value,
+            "step": step,
+            "mode": "box",
+        }
+    }
+
+
 def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
@@ -47,20 +58,20 @@ def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
             ): EntitySelector(EntitySelectorConfig(domain="sensor")),
             vol.Optional(
                 CONF_TEMP_SENSOR,
-                default=defaults.get(CONF_TEMP_SENSOR),
+                default=defaults.get(CONF_TEMP_SENSOR, ""),
             ): EntitySelector(EntitySelectorConfig(domain="sensor")),
             vol.Required(
                 CONF_WINDOW_AZIMUTH,
                 default=defaults.get(CONF_WINDOW_AZIMUTH, DEFAULTS[CONF_WINDOW_AZIMUTH]),
-            ): NumberSelector(NumberSelectorConfig(min=0, max=359, mode=NumberSelectorMode.BOX, step=1)),
+            ): _num_selector(0, 359, 1),
             vol.Required(
                 CONF_WINDOW_VIEW_LEFT,
                 default=defaults.get(CONF_WINDOW_VIEW_LEFT, DEFAULTS[CONF_WINDOW_VIEW_LEFT]),
-            ): NumberSelector(NumberSelectorConfig(min=0, max=180, mode=NumberSelectorMode.BOX, step=1)),
+            ): _num_selector(0, 180, 1),
             vol.Required(
                 CONF_WINDOW_VIEW_RIGHT,
                 default=defaults.get(CONF_WINDOW_VIEW_RIGHT, DEFAULTS[CONF_WINDOW_VIEW_RIGHT]),
-            ): NumberSelector(NumberSelectorConfig(min=0, max=180, mode=NumberSelectorMode.BOX, step=1)),
+            ): _num_selector(0, 180, 1),
         }
     )
 
@@ -68,20 +79,20 @@ def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
 def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required(CONF_LUX_CLOSE_SUMMER, default=defaults.get(CONF_LUX_CLOSE_SUMMER, DEFAULTS[CONF_LUX_CLOSE_SUMMER])): NumberSelector(NumberSelectorConfig(min=1000, max=120000, step=500, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_LUX_OPEN_SUMMER, default=defaults.get(CONF_LUX_OPEN_SUMMER, DEFAULTS[CONF_LUX_OPEN_SUMMER])): NumberSelector(NumberSelectorConfig(min=500, max=120000, step=500, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_LUX_CLOSE_WINTER, default=defaults.get(CONF_LUX_CLOSE_WINTER, DEFAULTS[CONF_LUX_CLOSE_WINTER])): NumberSelector(NumberSelectorConfig(min=500, max=120000, step=500, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_LUX_OPEN_WINTER, default=defaults.get(CONF_LUX_OPEN_WINTER, DEFAULTS[CONF_LUX_OPEN_WINTER])): NumberSelector(NumberSelectorConfig(min=500, max=120000, step=500, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_DEBOUNCE_MINUTES, default=defaults.get(CONF_DEBOUNCE_MINUTES, DEFAULTS[CONF_DEBOUNCE_MINUTES])): NumberSelector(NumberSelectorConfig(min=1, max=30, step=1, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_TICK_MINUTES, default=defaults.get(CONF_TICK_MINUTES, DEFAULTS[CONF_TICK_MINUTES])): NumberSelector(NumberSelectorConfig(min=1, max=30, step=1, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_MAX_STEP_PER_TICK, default=defaults.get(CONF_MAX_STEP_PER_TICK, DEFAULTS[CONF_MAX_STEP_PER_TICK])): NumberSelector(NumberSelectorConfig(min=1, max=50, step=1, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_HEAT_START_HOUR, default=defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR])): NumberSelector(NumberSelectorConfig(min=0, max=23, step=1, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_HEAT_END_HOUR, default=defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR])): NumberSelector(NumberSelectorConfig(min=0, max=23, step=1, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_HEAT_POSITION, default=defaults.get(CONF_HEAT_POSITION, DEFAULTS[CONF_HEAT_POSITION])): NumberSelector(NumberSelectorConfig(min=0, max=100, step=1, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_TEMP_THRESHOLD, default=defaults.get(CONF_TEMP_THRESHOLD, DEFAULTS[CONF_TEMP_THRESHOLD])): NumberSelector(NumberSelectorConfig(min=10, max=40, step=0.5, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_WINTER_PRIVACY_HOUR, default=defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR])): NumberSelector(NumberSelectorConfig(min=0, max=23, step=1, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])): NumberSelector(NumberSelectorConfig(min=0, max=23, step=1, mode=NumberSelectorMode.BOX)),
-            vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES])): NumberSelector(NumberSelectorConfig(min=5, max=240, step=5, mode=NumberSelectorMode.BOX)),
+            vol.Required(CONF_LUX_CLOSE_SUMMER, default=defaults.get(CONF_LUX_CLOSE_SUMMER, DEFAULTS[CONF_LUX_CLOSE_SUMMER])): _num_selector(1000, 120000, 500),
+            vol.Required(CONF_LUX_OPEN_SUMMER, default=defaults.get(CONF_LUX_OPEN_SUMMER, DEFAULTS[CONF_LUX_OPEN_SUMMER])): _num_selector(500, 120000, 500),
+            vol.Required(CONF_LUX_CLOSE_WINTER, default=defaults.get(CONF_LUX_CLOSE_WINTER, DEFAULTS[CONF_LUX_CLOSE_WINTER])): _num_selector(500, 120000, 500),
+            vol.Required(CONF_LUX_OPEN_WINTER, default=defaults.get(CONF_LUX_OPEN_WINTER, DEFAULTS[CONF_LUX_OPEN_WINTER])): _num_selector(500, 120000, 500),
+            vol.Required(CONF_DEBOUNCE_MINUTES, default=defaults.get(CONF_DEBOUNCE_MINUTES, DEFAULTS[CONF_DEBOUNCE_MINUTES])): _num_selector(1, 30, 1),
+            vol.Required(CONF_TICK_MINUTES, default=defaults.get(CONF_TICK_MINUTES, DEFAULTS[CONF_TICK_MINUTES])): _num_selector(1, 30, 1),
+            vol.Required(CONF_MAX_STEP_PER_TICK, default=defaults.get(CONF_MAX_STEP_PER_TICK, DEFAULTS[CONF_MAX_STEP_PER_TICK])): _num_selector(1, 50, 1),
+            vol.Required(CONF_HEAT_START_HOUR, default=defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR])): _num_selector(0, 23, 1),
+            vol.Required(CONF_HEAT_END_HOUR, default=defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR])): _num_selector(0, 23, 1),
+            vol.Required(CONF_HEAT_POSITION, default=defaults.get(CONF_HEAT_POSITION, DEFAULTS[CONF_HEAT_POSITION])): _num_selector(0, 100, 1),
+            vol.Required(CONF_TEMP_THRESHOLD, default=defaults.get(CONF_TEMP_THRESHOLD, DEFAULTS[CONF_TEMP_THRESHOLD])): _num_selector(10, 40, 0.5),
+            vol.Required(CONF_WINTER_PRIVACY_HOUR, default=defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR])): _num_selector(0, 23, 1),
+            vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])): _num_selector(0, 23, 1),
+            vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES])): _num_selector(5, 240, 5),
         }
     )
 
@@ -105,6 +116,10 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_options(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
             data = dict(self.context.get("user_data", {}))
+            if not data:
+                return self.async_abort(reason="unknown")
+            if not user_input.get(CONF_TEMP_SENSOR):
+                user_input.pop(CONF_TEMP_SENSOR, None)
             return self.async_create_entry(
                 title=f"HA Blinds ({data[CONF_COVER_ENTITY]})",
                 data=data,
@@ -126,8 +141,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
+            if not user_input.get(CONF_TEMP_SENSOR):
+                user_input.pop(CONF_TEMP_SENSOR, None)
             return self.async_create_entry(title="", data=user_input)
 
         defaults = {**DEFAULTS, **self.config_entry.options}
         return self.async_show_form(step_id="init", data_schema=_options_schema(defaults))
-
