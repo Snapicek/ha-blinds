@@ -40,7 +40,7 @@ from .logic import DecisionConfig, DecisionEngine, DecisionInputs
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass(slots=True)
+@dataclass
 class _RuntimeState:
     paused_until: datetime | None = None
     last_reason: str = "startup"

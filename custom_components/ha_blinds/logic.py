@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 
-@dataclass(slots=True)
+@dataclass
 class DecisionConfig:
     window_azimuth: int
     window_view_left: int
@@ -27,7 +27,7 @@ class DecisionConfig:
     summer_privacy_hour: int
 
 
-@dataclass(slots=True)
+@dataclass
 class DecisionInputs:
     now: datetime
     sun_azimuth: float
@@ -38,7 +38,7 @@ class DecisionInputs:
     paused: bool
 
 
-@dataclass(slots=True)
+@dataclass
 class DecisionResult:
     should_move: bool
     target_position: int
@@ -46,7 +46,7 @@ class DecisionResult:
     sun_at_window: bool
 
 
-@dataclass(slots=True)
+@dataclass
 class EngineState:
     high_lux_since: datetime | None = None
     low_lux_since: datetime | None = None

@@ -2,12 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers import config_validation as cv
+from typing import TYPE_CHECKING, Any
 
 from .const import (
     ATTR_ENTRY_ID,
@@ -17,19 +12,28 @@ from .const import (
     SERVICE_PAUSE,
     SERVICE_RESUME,
 )
-from .coordinator import HaBlindsController
 
-SERVICE_SCHEMA_ENTRY = vol.Schema({vol.Optional(ATTR_ENTRY_ID): cv.string})
-SERVICE_SCHEMA_PAUSE = vol.Schema(
-    {
-        vol.Optional(ATTR_ENTRY_ID): cv.string,
-        vol.Optional(ATTR_MINUTES): vol.Coerce(int),
-    }
-)
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from .coordinator import HaBlindsController
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Set up integration domain."""
+    import voluptuous as vol
+    from homeassistant.core import ServiceCall
+    from homeassistant.helpers import config_validation as cv
+    from .coordinator import HaBlindsController
+
+    SERVICE_SCHEMA_ENTRY = vol.Schema({vol.Optional(ATTR_ENTRY_ID): cv.string})
+    SERVICE_SCHEMA_PAUSE = vol.Schema(
+        {
+            vol.Optional(ATTR_ENTRY_ID): cv.string,
+            vol.Optional(ATTR_MINUTES): vol.Coerce(int),
+        }
+    )
+
     hass.data.setdefault(DOMAIN, {})
 
     def _iter_targets(call: ServiceCall) -> list[HaBlindsController]:
@@ -78,6 +82,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HA Blinds from a config entry."""
+    from .coordinator import HaBlindsController
+
     controller = HaBlindsController(hass, entry)
     await controller.async_start()
 
@@ -88,6 +94,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    from .coordinator import HaBlindsController
+
     controller: HaBlindsController | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if controller:
         await controller.async_stop()
