@@ -1,0 +1,11 @@
+ [project]
+name = "ha-blinds"
+version = "1.0.0"
+description = "HACS-ready Home Assistant custom integration for sun/lux based blind control"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+

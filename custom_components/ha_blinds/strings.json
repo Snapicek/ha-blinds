@@ -1,0 +1,31 @@
+ {
+  "config": {
+    "step": {
+      "user": {
+        "title": "HA Blinds Setup",
+        "description": "Choose entities and window orientation.",
+        "data": {
+          "cover_entity": "Blinds cover entity",
+          "lux_sensor": "Lux sensor",
+          "temp_sensor": "Temperature sensor (optional)",
+          "window_azimuth": "Window azimuth (0-359)",
+          "window_view_left": "Window view left angle",
+          "window_view_right": "Window view right angle"
+        }
+      },
+      "options": {
+        "title": "HA Blinds Tuning",
+        "description": "Set thresholds, debounce, and movement profile."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA Blinds Options",
+        "description": "Adjust thresholds and timing without re-adding integration."
+      }
+    }
+  }
+}
+

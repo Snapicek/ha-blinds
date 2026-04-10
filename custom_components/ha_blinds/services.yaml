@@ -1,0 +1,43 @@
+pause:
+  name: Pause Automation
+  description: Pause one or all HA Blinds entries for a period.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID. If omitted, applies to all entries.
+      required: false
+      selector:
+        text:
+    minutes:
+      name: Minutes
+      description: Optional override duration in minutes.
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 480
+          step: 1
+          mode: box
+
+resume:
+  name: Resume Automation
+  description: Resume one or all HA Blinds entries immediately.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID. If omitted, applies to all entries.
+      required: false
+      selector:
+        text:
+
+evaluate_now:
+  name: Evaluate Now
+  description: Trigger immediate evaluation for one or all HA Blinds entries.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID. If omitted, applies to all entries.
+      required: false
+      selector:
+        text:
+

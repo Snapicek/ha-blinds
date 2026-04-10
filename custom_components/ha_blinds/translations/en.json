@@ -1,0 +1,69 @@
+{
+  "title": "HA Blinds",
+  "config": {
+    "step": {
+      "user": {
+        "title": "HA Blinds Setup",
+        "description": "Choose entities and window orientation.",
+        "data": {
+          "cover_entity": "Blinds cover entity",
+          "lux_sensor": "Lux sensor",
+          "temp_sensor": "Temperature sensor (optional)",
+          "window_azimuth": "Window azimuth (0-359)",
+          "window_view_left": "Window view left angle",
+          "window_view_right": "Window view right angle"
+        }
+      },
+      "options": {
+        "title": "HA Blinds Tuning",
+        "description": "Set thresholds, debounce, and movement profile."
+      }
+    },
+    "error": {}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA Blinds Options",
+        "description": "Adjust thresholds and timing without re-adding integration."
+      }
+    }
+  },
+  "services": {
+    "pause": {
+      "name": "Pause Automation",
+      "description": "Pause one or all HA Blinds entries for a period.",
+      "fields": {
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID. If omitted, applies to all entries."
+        },
+        "minutes": {
+          "name": "Minutes",
+          "description": "Optional override duration in minutes."
+        }
+      }
+    },
+    "resume": {
+      "name": "Resume Automation",
+      "description": "Resume one or all HA Blinds entries immediately.",
+      "fields": {
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID. If omitted, applies to all entries."
+        }
+      }
+    },
+    "evaluate_now": {
+      "name": "Evaluate Now",
+      "description": "Trigger immediate evaluation for one or all HA Blinds entries.",
+      "fields": {
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Optional config entry ID. If omitted, applies to all entries."
+        }
+      }
+    }
+  }
+}
+

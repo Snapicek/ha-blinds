@@ -1,0 +1,13 @@
+{
+  "domain": "ha_blinds",
+  "name": "HA Blinds",
+  "codeowners": ["@Snapicek"],
+  "documentation": "https://github.com/Snapicek/ha-blinds",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "loggers": ["custom_components.ha_blinds"],
+  "requirements": [],
+  "version": "1.0.0",
+  "config_flow": true
+}
+
