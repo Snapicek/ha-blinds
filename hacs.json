@@ -5,5 +5,6 @@
   "content_in_root": false,
   "render_readme": true,
   "iot_class": "local_polling",
-  "icon": "icon.png"
+  "icon": "Icon_256.png",
+  "logo": "Logo_256.png"
 }

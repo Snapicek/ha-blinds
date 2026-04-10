@@ -9,5 +9,6 @@
   "requirements": [],
   "version": "1.10.0",
   "config_flow": true,
-  "icon": "/icon.png"
+  "icon": "Icon_256.png",
+  "logo": "Logo_256.png"
 }
