@@ -188,5 +188,3 @@ class HaBlindsController:
             return float(state.state)
         except ValueError:
             return None
-
-e.
