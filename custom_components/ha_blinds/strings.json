@@ -67,40 +67,80 @@
     "step": {
       "init": {
         "title": "HA Blinds Options",
-        "description": "Adjust thresholds and timing without re-adding integration. All changes take effect immediately.",
+        "description": "Choose what to adjust. All changes take effect immediately.",
+        "menu_options": {
+          "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
+          "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
+          "entities": "🔧 Reconfigure Entities (Cover, Sensor)"
+        }
+      },
+      "thresholds": {
+        "title": "Threshold Settings",
+        "description": "Adjust lux thresholds for closing/opening blinds, heat protection, and privacy hours.",
         "data": {
           "lux_close_summer": "Summer Close Lux",
           "lux_open_summer": "Summer Open Lux",
           "lux_close_winter": "Winter Close Lux",
           "lux_open_winter": "Winter Open Lux",
-          "debounce_minutes": "Debounce (minutes)",
-          "tick_minutes": "Tick (minutes)",
-          "max_step_per_tick": "Max step per tick (%)",
           "heat_start_hour": "Heat start hour",
           "heat_end_hour": "Heat end hour",
           "heat_position": "Heat position (%)",
           "temp_threshold": "Temperature threshold (°C)",
           "winter_privacy_hour": "Winter privacy hour",
-          "summer_privacy_hour": "Summer privacy hour",
-          "manual_override_minutes": "Manual override (minutes)"
+          "summer_privacy_hour": "Summer privacy hour"
         },
         "data_description": {
           "lux_close_summer": "Lux threshold to close blinds in summer. Higher = close only in bright sun. Recommended: 35000.",
           "lux_open_summer": "Lux threshold to open blinds in summer. Should be lower than close lux. Recommended: 20000.",
-          "lux_close_winter": "Lux threshold to close blinds in winter. Winter sun is lower, might be lower than summer. Recommended: 20000.",
+          "lux_close_winter": "Lux threshold to close blinds in winter. Recommended: 20000.",
           "lux_open_winter": "Lux threshold to open blinds in winter. Recommended: 12000.",
-          "debounce_minutes": "Minutes to wait before reacting to lux changes to prevent flapping. Recommended: 5-10.",
-          "tick_minutes": "Frequency of checking/updating blind position in minutes. Recommended: 5.",
-          "max_step_per_tick": "Max position change per tick to make movement smoother. Recommended: 10.",
           "heat_start_hour": "Hour to start heat protection mode (0-23). Recommended: 10.",
           "heat_end_hour": "Hour to end heat protection mode (0-23). Recommended: 17.",
           "heat_position": "Blind position during heat protection (0-100). Recommended: 20.",
-          "temp_threshold": "Temperature above which heat protection activates if an indoor temp sensor is provided. Recommended: 24.0.",
+          "temp_threshold": "Temperature above which heat protection activates. Recommended: 24.0.",
           "winter_privacy_hour": "Hour to close blinds for privacy in winter (0-23). Recommended: 16.",
-          "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19.",
+          "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19."
+        }
+      },
+      "timing": {
+        "title": "Timing Settings",
+        "description": "Adjust check frequency, movement speed, and response timing.",
+        "data": {
+          "tick_minutes": "Tick (minutes)",
+          "max_step_per_tick": "Max step per tick (%)",
+          "debounce_minutes": "Debounce (minutes)",
+          "manual_override_minutes": "Manual override (minutes)"
+        },
+        "data_description": {
+          "tick_minutes": "Frequency of checking/updating blind position in minutes. Recommended: 5.",
+          "max_step_per_tick": "Max position change per tick to make movement smoother. Recommended: 10.",
+          "debounce_minutes": "Minutes to wait before reacting to lux changes to prevent flapping. Recommended: 5-10.",
           "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
         }
+      },
+      "entities": {
+        "title": "Entity Configuration",
+        "description": "Change cover/sensor entities or window orientation. Integration will reload.",
+        "data": {
+          "cover_entity": "Blinds cover entity",
+          "lux_sensor": "Lux sensor",
+          "temp_sensor": "Temperature sensor (optional)",
+          "window_azimuth": "Window azimuth (0-359)",
+          "window_view_left": "Window view left angle",
+          "window_view_right": "Window view right angle"
+        },
+        "data_description": {
+          "cover_entity": "Your blind/shutter entity",
+          "lux_sensor": "Light level sensor",
+          "temp_sensor": "Optional temperature sensor for heat protection",
+          "window_azimuth": "Direction window faces (180=South, 270=West, 90=East)",
+          "window_view_left": "Angle of view to the left (0-180). 90=unobstructed.",
+          "window_view_right": "Angle of view to the right (0-180). 90=unobstructed."
+        }
       }
+    },
+    "abort": {
+      "reconfigure_successful": "Configuration updated successfully. Integration reloaded."
     }
   },
   "services": {

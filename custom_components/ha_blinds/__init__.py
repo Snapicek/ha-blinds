@@ -96,6 +96,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = controller
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
+
+    # Setup sensor platforms
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+
     _LOGGER.info("HA Blinds entry %s setup complete", entry.entry_id)
     return True
 

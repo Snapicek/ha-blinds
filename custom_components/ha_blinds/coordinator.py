@@ -279,3 +279,6 @@ class HaBlindsController:
             "error_count": self._runtime.error_count,
         }
 
+    def async_add_listener(self, callback) -> callable:
+        """Add state update listener for sensors."""
+        return self._update_callback.async_add_listener(callback)

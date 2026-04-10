@@ -1,17 +1,22 @@
-# HA Blinds (HACS Custom Integration)
+# HA Blinds - Professional Blind Automation for Home Assistant
 
-UI-configurable Home Assistant integration for tilt blinds controlled by sun position, window azimuth, lux, and seasonal rules.
+**Complete solution** for automatic blind control with **Home Assistant Integration** and **HAOS Add-on** support.
+
+UI-configurable automation for tilt blinds controlled by sun position, window azimuth, lux levels, and seasonal rules.
 
 ## What this integration gives you
 
-- ✅ **Config flow** in **Settings -> Devices & Services** with entity selectors
-- ✅ **Options flow** to tune thresholds without YAML edits
+- ✅ **Config flow** in **Settings → Devices & Services** with entity selectors
+- ✅ **Options flow** to tune thresholds without YAML edits  
 - ✅ **Runtime control loop** (no giant automation YAML required)
 - ✅ **Services** for pause/resume/evaluate-now
 - ✅ **Device registry** for each blind automation
-- ✅ **Status entities** showing automation state and reason
+- ✅ **Status sensors** showing automation state and reason
+- ✅ **Editable entities** to change settings from UI
 - ✅ **Diagnostics** for troubleshooting
-- ✅ **HACS-ready** repository layout
+- ✅ **Icons & Logos** properly configured
+- ✅ **HAOS Add-on ready** for official add-on store
+- ✅ **HACS integration** for custom repository
 - ✅ **Multi-instance support** - manage multiple blinds independently
 
 ## Features
