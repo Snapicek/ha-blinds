@@ -160,7 +160,7 @@ class HaBlindsController:
             return self.entry.options[key]
         if key in self.entry.data:
             return self.entry.data[key]
-        return DEFAULTS[key]
+        return DEFAULTS.get(key)
 
     def _decision_config(self) -> DecisionConfig:
         return DecisionConfig(
