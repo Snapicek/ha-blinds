@@ -100,18 +100,8 @@ class HaBlindsController:
             name=f"HA Blinds - {cover_entity}",
             manufacturer="HA Blinds",
             model="Automation Controller",
-            suggested_area=self._extract_area_from_entity(cover_entity),
         ).id
         _LOGGER.debug("Device created: %s", self._device_id)
-
-    @staticmethod
-    def _extract_area_from_entity(entity_id: str) -> str | None:
-        """Extract area hint from entity name if possible."""
-        parts = entity_id.split(".")
-        if len(parts) > 1:
-            friendly_name = parts[1].replace("_", " ").title()
-            return friendly_name
-        return None
 
     async def async_pause(self, minutes: int | None = None) -> None:
         """Pause automation for given minutes or configured default."""

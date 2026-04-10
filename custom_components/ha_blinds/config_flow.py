@@ -40,10 +40,10 @@ def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
             sel.EntitySelectorConfig(domain="cover")
         ),
         vol.Required(CONF_LUX_SENSOR): sel.EntitySelector(
-            sel.EntitySelectorConfig(domain="sensor")
+            sel.EntitySelectorConfig(domain="sensor", device_class="illuminance")
         ),
         vol.Optional(CONF_TEMP_SENSOR): sel.EntitySelector(
-            sel.EntitySelectorConfig(domain="sensor")
+            sel.EntitySelectorConfig(domain="sensor", device_class="temperature")
         ),
         vol.Required(
             CONF_WINDOW_AZIMUTH,
@@ -141,7 +141,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize the options flow."""
-        super().__init__(config_entry)
+        self.config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Show main options menu."""
@@ -232,10 +232,10 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 sel.EntitySelectorConfig(domain="cover")
             ),
             vol.Required(CONF_LUX_SENSOR, default=defaults.get(CONF_LUX_SENSOR)): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="sensor")
+                sel.EntitySelectorConfig(domain="sensor", device_class="illuminance")
             ),
             vol.Optional(CONF_TEMP_SENSOR, description={"suggested_value": defaults.get(CONF_TEMP_SENSOR, "")}): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="sensor")
+                sel.EntitySelectorConfig(domain="sensor", device_class="temperature")
             ),
             vol.Required(
                 CONF_WINDOW_AZIMUTH,
