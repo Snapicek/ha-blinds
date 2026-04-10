@@ -57,7 +57,35 @@ Restart Home Assistant, then add **HA Blinds** from Integrations.
 python tools/run_logic_tests.py
 ```
 
+## Troubleshooting
+
+If Home Assistant shows:
+
+`Config flow could not be loaded (message: invalid handler specified)`
+
+check these first:
+
+1. Folder structure is exact (no nested folder):
+
+```text
+/config/custom_components/ha_blinds/manifest.json
+/config/custom_components/ha_blinds/config_flow.py
+```
+
+2. Do **not** copy repo root as `/config/custom_components/ha_blinds`.
+   Copy only the inner `custom_components/ha_blinds` folder.
+
+3. Remove stale install before reinstall:
+
+```bash
+rm -rf /config/custom_components/ha_blinds
+```
+
+4. Reinstall from HACS, then fully restart Home Assistant.
+
+5. In logs, search for `ha_blinds` and `config_flow` import errors.
+
 ## Notes
 
-- This repo now contains a full custom integration scaffold.
+- This repo contains a full custom integration scaffold.
 - Existing `blind_automation.yaml` can still be kept for reference/migration.
