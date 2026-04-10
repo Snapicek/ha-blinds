@@ -6,7 +6,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import selector as sel
 
 from .const import (
     CONF_COVER_ENTITY,
@@ -35,25 +35,38 @@ from .const import (
 
 
 def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
-    return vol.Schema(
-        {
-            vol.Required(CONF_COVER_ENTITY, default=defaults.get(CONF_COVER_ENTITY, "cover.")): cv.entity_id,
-            vol.Required(CONF_LUX_SENSOR, default=defaults.get(CONF_LUX_SENSOR, "sensor.")): cv.entity_id,
-            vol.Optional(CONF_TEMP_SENSOR, default=defaults.get(CONF_TEMP_SENSOR, "")): vol.Any("", cv.entity_id),
-            vol.Required(
-                CONF_WINDOW_AZIMUTH,
-                default=int(defaults.get(CONF_WINDOW_AZIMUTH, DEFAULTS[CONF_WINDOW_AZIMUTH])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=359)),
-            vol.Required(
-                CONF_WINDOW_VIEW_LEFT,
-                default=int(defaults.get(CONF_WINDOW_VIEW_LEFT, DEFAULTS[CONF_WINDOW_VIEW_LEFT])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
-            vol.Required(
-                CONF_WINDOW_VIEW_RIGHT,
-                default=int(defaults.get(CONF_WINDOW_VIEW_RIGHT, DEFAULTS[CONF_WINDOW_VIEW_RIGHT])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
-        }
-    )
+    schema = {
+        vol.Required(CONF_COVER_ENTITY): sel.EntitySelector(
+            sel.EntitySelectorConfig(domain="cover")
+        ),
+        vol.Required(CONF_LUX_SENSOR): sel.EntitySelector(
+            sel.EntitySelectorConfig(domain="sensor")
+        ),
+        vol.Optional(CONF_TEMP_SENSOR): sel.EntitySelector(
+            sel.EntitySelectorConfig(domain="sensor")
+        ),
+        vol.Required(
+            CONF_WINDOW_AZIMUTH,
+            default=int(defaults.get(CONF_WINDOW_AZIMUTH, DEFAULTS[CONF_WINDOW_AZIMUTH])),
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=359)),
+        vol.Required(
+            CONF_WINDOW_VIEW_LEFT,
+            default=int(defaults.get(CONF_WINDOW_VIEW_LEFT, DEFAULTS[CONF_WINDOW_VIEW_LEFT])),
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
+        vol.Required(
+            CONF_WINDOW_VIEW_RIGHT,
+            default=int(defaults.get(CONF_WINDOW_VIEW_RIGHT, DEFAULTS[CONF_WINDOW_VIEW_RIGHT])),
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
+    }
+
+    if CONF_COVER_ENTITY in defaults:
+        schema[vol.Required(CONF_COVER_ENTITY, default=defaults[CONF_COVER_ENTITY])] = schema.pop(vol.Required(CONF_COVER_ENTITY))
+    if CONF_LUX_SENSOR in defaults:
+        schema[vol.Required(CONF_LUX_SENSOR, default=defaults[CONF_LUX_SENSOR])] = schema.pop(vol.Required(CONF_LUX_SENSOR))
+    if CONF_TEMP_SENSOR in defaults:
+        schema[vol.Optional(CONF_TEMP_SENSOR, description={"suggested_value": defaults[CONF_TEMP_SENSOR]})] = schema.pop(vol.Optional(CONF_TEMP_SENSOR))
+
+    return vol.Schema(schema)
 
 
 def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
