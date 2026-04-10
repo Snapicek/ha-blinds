@@ -127,8 +127,6 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     """Options flow for HA Blinds."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        super().__init__(config_entry)
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
