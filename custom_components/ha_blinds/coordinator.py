@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -15,6 +15,7 @@ from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.const import STATE_UNKNOWN
+from homeassistant.helpers.dispatcher import async_dispatcher_send, async_dispatcher_connect
 
 from .const import (
     CONF_COVER_ENTITY,
@@ -52,6 +53,7 @@ class _RuntimeState:
     last_target: int | None = None
     last_decision_time: datetime | None = None
     error_count: int = 0
+    sun_at_window: bool = False
 
 
 class HaBlindsController:
@@ -64,6 +66,7 @@ class HaBlindsController:
         self._unsub_interval = None
         self._engine = DecisionEngine(self._decision_config())
         self._device_id = None
+        self._signal = f"{DOMAIN}_{self.entry.entry_id}_update"
 
     async def async_start(self) -> None:
         """Start periodic evaluation and create device."""
@@ -171,6 +174,7 @@ class HaBlindsController:
         result = self._engine.evaluate(inputs)
         self._runtime.last_reason = result.reason
         self._runtime.last_decision_time = now
+        self._runtime.sun_at_window = result.sun_at_window
 
         if not result.should_move:
             self._update_state_attributes()
@@ -225,8 +229,10 @@ class HaBlindsController:
                 "paused_until": paused_until_str,
                 "cover_entity": cover_entity,
                 "error_count": self._runtime.error_count,
+                "sun_at_window": self._runtime.sun_at_window,
             },
         )
+        async_dispatcher_send(self.hass, self._signal)
 
     def _cfg(self, key: str) -> Any:
         if key in self.entry.options:
@@ -277,8 +283,9 @@ class HaBlindsController:
             "paused_until": self._runtime.paused_until.isoformat() if self._runtime.paused_until else None,
             "last_decision_time": self._runtime.last_decision_time.isoformat() if self._runtime.last_decision_time else None,
             "error_count": self._runtime.error_count,
+            "sun_at_window": self._runtime.sun_at_window,
         }
 
-    def async_add_listener(self, callback) -> callable:
+    def async_add_listener(self, callback) -> Callable:
         """Add state update listener for sensors."""
-        return self._update_callback.async_add_listener(callback)
+        return async_dispatcher_connect(self.hass, self._signal, callback)

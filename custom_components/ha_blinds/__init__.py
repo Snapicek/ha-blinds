@@ -100,6 +100,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Setup sensor platforms
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
+    # Setup switch platforms
+    await hass.config_entries.async_forward_entry_setups(entry, ["switch"])
+
     _LOGGER.info("HA Blinds entry %s setup complete", entry.entry_id)
     return True
 

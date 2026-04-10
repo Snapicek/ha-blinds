@@ -27,6 +27,10 @@ async def async_setup_entry(
     entities = [
         HaBlindsStateSensor(coordinator, entry),
         HaBlindsLastReasonSensor(coordinator, entry),
+        HaBlindsTargetPositionSensor(coordinator, entry),
+        HaBlindsLastDecisionSensor(coordinator, entry),
+        HaBlindsErrorCountSensor(coordinator, entry),
+        HaBlindsSunAtWindowSensor(coordinator, entry),
     ]
 
     async_add_entities(entities)
@@ -100,4 +104,91 @@ class HaBlindsLastReasonSensor(HaBlindsBaseSensor):
         return "mdi:information"
 
 
+class HaBlindsTargetPositionSensor(HaBlindsBaseSensor):
+    """Target position sensor."""
 
+    @property
+    def unique_id(self) -> str:
+        return f"{self.entry.entry_id}_target_position"
+
+    @property
+    def name(self) -> str:
+        return "Target Position"
+
+    @property
+    def state(self) -> int | None:
+        return self.coordinator._runtime.last_target
+
+    @property
+    def icon(self) -> str:
+        return "mdi:arrow-up-down"
+
+    @property
+    def unit_of_measurement(self) -> str:
+        return "%"
+
+
+class HaBlindsLastDecisionSensor(HaBlindsBaseSensor):
+    """Last decision sensor."""
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self.entry.entry_id}_last_decision"
+
+    @property
+    def name(self) -> str:
+        return "Last Decision"
+
+    @property
+    def state(self) -> str | None:
+        if self.coordinator._runtime.last_decision_time:
+            return self.coordinator._runtime.last_decision_time.isoformat()
+        return None
+
+    @property
+    def icon(self) -> str:
+        return "mdi:check-circle"
+
+
+class HaBlindsErrorCountSensor(HaBlindsBaseSensor):
+    """Error count sensor."""
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self.entry.entry_id}_error_count"
+
+    @property
+    def name(self) -> str:
+        return "Error Count"
+
+    @property
+    def state(self) -> int:
+        return self.coordinator._runtime.error_count
+
+    @property
+    def icon(self) -> str:
+        return "mdi:alert-circle"
+
+    @property
+    def unit_of_measurement(self) -> str:
+        return "errors"
+
+
+class HaBlindsSunAtWindowSensor(HaBlindsBaseSensor):
+    """Sun at window sensor."""
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self.entry.entry_id}_sun_at_window"
+
+    @property
+    def name(self) -> str:
+        return "Sun at Window"
+
+    @property
+    def state(self) -> bool:
+        return self.coordinator._runtime.sun_at_window
+
+    @property
+    def icon(self) -> str:
+        return "mdi:sunglasses"
