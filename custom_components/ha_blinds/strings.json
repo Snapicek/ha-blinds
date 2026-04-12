@@ -89,11 +89,16 @@
         "title": "HA Blinds Options",
         "description": "Choose what to adjust. All changes take effect immediately.",
         "menu_options": {
+          "check_state": "📊 Check Current State & Evaluate",
           "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
           "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
           "features": "⚙️ Enable/Disable Features",
           "entities": "🔧 Reconfigure Entities (Cover, Sensor)"
         }
+      },
+      "check_state": {
+        "title": "Check Current State",
+        "description": "View current state of all automation entities and trigger evaluation.\n\n{state_info}\n\nClick **SUBMIT** to trigger immediate evaluation and return to menu."
       },
       "thresholds": {
         "title": "Threshold Settings",

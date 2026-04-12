@@ -193,6 +193,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options={
+                "check_state": "📊 Check Current State & Evaluate",
                 "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
                 "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
                 "features": "⚙️ Enable/Disable Features",
@@ -200,6 +201,76 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             },
             description_placeholders={
                 "info": "Choose what to configure",
+            },
+        )
+
+    async def async_step_check_state(self, user_input: dict[str, Any] | None = None):
+        """Check current state of entities and trigger evaluation."""
+        if user_input is not None:
+            # Trigger evaluate_now service
+            await self.hass.services.async_call(
+                DOMAIN,
+                "evaluate_now",
+                {"entry_id": self.config_entry.entry_id},
+            )
+            # Return to init menu
+            return await self.async_step_init()
+
+        # Get current entity states
+        cover_entity = str(self.config_entry.data.get(CONF_COVER_ENTITY, ""))
+        lux_entity = str(self.config_entry.data.get(CONF_LUX_SENSOR, ""))
+        temp_entity = self.config_entry.data.get(CONF_TEMP_SENSOR)
+
+        cover_state = self.hass.states.get(cover_entity)
+        lux_state = self.hass.states.get(lux_entity)
+        temp_state = self.hass.states.get(str(temp_entity)) if temp_entity else None
+        sun_state = self.hass.states.get("sun.sun")
+
+        # Build state info
+        info_text = "**Current Entity States:**\n\n"
+        
+        if cover_state:
+            position = cover_state.attributes.get("current_position", "Unknown")
+            info_text += f"🪟 **Cover:** {cover_entity}\n   Position: {position}%\n\n"
+        else:
+            info_text += f"🪟 **Cover:** {cover_entity}\n   ⚠️ State: Unavailable\n\n"
+
+        if lux_state:
+            lux_value = lux_state.state
+            info_text += f"💡 **Lux Sensor:** {lux_entity}\n   Value: {lux_value} lux\n\n"
+        else:
+            info_text += f"💡 **Lux Sensor:** {lux_entity}\n   ⚠️ State: Unavailable\n\n"
+
+        if temp_entity:
+            if temp_state:
+                temp_value = temp_state.state
+                info_text += f"🌡️ **Temperature Sensor:** {str(temp_entity)}\n   Value: {temp_value}°C\n\n"
+            else:
+                info_text += f"🌡️ **Temperature Sensor:** {str(temp_entity)}\n   ⚠️ State: Unavailable\n\n"
+        else:
+            info_text += f"🌡️ **Temperature Sensor:** Not configured\n\n"
+
+        if sun_state:
+            elevation = sun_state.attributes.get("elevation", "Unknown")
+            azimuth = sun_state.attributes.get("azimuth", "Unknown")
+            info_text += f"☀️ **Sun:**\n   Elevation: {elevation}°\n   Azimuth: {azimuth}°\n\n"
+        else:
+            info_text += f"☀️ **Sun:** ⚠️ State Unavailable\n\n"
+
+        # Get last automation result from coordinator
+        status_entity = f"{DOMAIN}.{self.config_entry.entry_id}_status"
+        status_state = self.hass.states.get(status_entity)
+        if status_state:
+            last_reason = status_state.attributes.get("last_reason", "Unknown")
+            last_target = status_state.attributes.get("last_target", "Unknown")
+            info_text += f"⚙️ **Last Automation Result:**\n   Reason: {last_reason}\n   Target Position: {last_target}%\n"
+
+        # Show form with state info and "Check Now" button
+        return self.async_show_form(
+            step_id="check_state",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "state_info": info_text,
             },
         )
 
