@@ -39,6 +39,13 @@ from .const import (
 )
 
 
+def _convert_time_inputs(user_input: dict[str, Any]) -> None:
+    """Convert HH:MM time strings to integer hours in-place."""
+    for time_key in [CONF_HEAT_START_HOUR, CONF_HEAT_END_HOUR, CONF_WINTER_PRIVACY_HOUR, CONF_SUMMER_PRIVACY_HOUR]:
+        if time_key in user_input and isinstance(user_input[time_key], str):
+            user_input[time_key] = int(user_input[time_key].split(":")[0])
+
+
 def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
     schema = {
         vol.Required(CONF_COVER_ENTITY): sel.EntitySelector(
@@ -125,9 +132,7 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not user_input.get(CONF_TEMP_SENSOR):
                 user_input.pop(CONF_TEMP_SENSOR, None)
             # Convert time strings back to integers
-            for time_key in [CONF_HEAT_START_HOUR, CONF_HEAT_END_HOUR, CONF_WINTER_PRIVACY_HOUR, CONF_SUMMER_PRIVACY_HOUR]:
-                if time_key in user_input and isinstance(user_input[time_key], str):
-                    user_input[time_key] = int(user_input[time_key].split(":")[0])
+            _convert_time_inputs(user_input)
             return self.async_create_entry(
                 title=f"HA Blinds ({data[CONF_COVER_ENTITY]})",
                 data=data,
@@ -136,17 +141,52 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(step_id="options", data_schema=_options_schema(DEFAULTS), errors={})
 
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None):
+        """Reconfigure step to update entities or window orientation."""
+        config_entry = self._get_reconfigure_entry()
+        
+        if user_input is not None:
+            if not user_input.get(CONF_TEMP_SENSOR):
+                user_input.pop(CONF_TEMP_SENSOR, None)
+            
+            # Convert time strings back to integers
+            _convert_time_inputs(user_input)
+            
+            # Extract entity/orientation data
+            entity_fields = {k: v for k, v in user_input.items() if k in [
+                CONF_COVER_ENTITY, CONF_LUX_SENSOR, CONF_TEMP_SENSOR, 
+                CONF_WINDOW_AZIMUTH, CONF_WINDOW_VIEW_LEFT, CONF_WINDOW_VIEW_RIGHT
+            ]}
+            
+            # Check for unique ID collision if cover entity changed
+            new_cover = entity_fields.get(CONF_COVER_ENTITY)
+            if new_cover and new_cover != config_entry.data.get(CONF_COVER_ENTITY):
+                await self.async_set_unique_id(new_cover)
+                self._abort_if_unique_id_configured()
+            
+            return self.async_update_reload_and_abort(
+                config_entry,
+                data={**config_entry.data, **entity_fields},
+                reason="reconfigure_successful",
+            )
+        
+        defaults = {**config_entry.data, **config_entry.options}
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_entry_schema(defaults),
+            description_placeholders={
+                "setup_info": "Update your blind cover entity, lux sensor, or window orientation.",
+            },
+        )
+
     @staticmethod
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        return HaBlindsOptionsFlow(config_entry)
+        return HaBlindsOptionsFlow()
 
 
 class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     """Options flow for HA Blinds."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize the options flow."""
-        self.config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Show main options menu."""
@@ -168,6 +208,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             if not user_input.get(CONF_TEMP_SENSOR):
                 user_input.pop(CONF_TEMP_SENSOR, None)
+            _convert_time_inputs(user_input)
             # Merge with existing options
             options = dict(self.config_entry.options)
             options.update(user_input)
@@ -244,17 +285,13 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     async def async_step_entities(self, user_input: dict[str, Any] | None = None):
         """Reconfigure entities (cover, lux sensor)."""
         if user_input is not None:
-            # Merge with existing data
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            # Update entry data for entities
-            self.hass.config_entries.async_update_entry(
-                self.config_entry,
-                data={**self.config_entry.data, **{k: v for k, v in user_input.items() if k in [CONF_COVER_ENTITY, CONF_LUX_SENSOR, CONF_TEMP_SENSOR, CONF_WINDOW_AZIMUTH, CONF_WINDOW_VIEW_LEFT, CONF_WINDOW_VIEW_RIGHT]}},
-                options=options,
-            )
-            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
-            return self.async_abort(reason="reconfigure_successful")
+            if not user_input.get(CONF_TEMP_SENSOR):
+                user_input.pop(CONF_TEMP_SENSOR, None)
+            _convert_time_inputs(user_input)
+            # Merge with existing options
+            new_options = dict(self.config_entry.options)
+            new_options.update(user_input)
+            return self.async_create_entry(title="", data=new_options)
 
         defaults = {**self.config_entry.data, **self.config_entry.options}
         schema_dict = {

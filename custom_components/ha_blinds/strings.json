@@ -53,6 +53,26 @@
           "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19.",
           "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure HA Blinds",
+        "description": "Update your blind cover entity, lux sensor, or window orientation.",
+        "data": {
+          "cover_entity": "Blinds cover entity",
+          "lux_sensor": "Lux sensor",
+          "temp_sensor": "Temperature sensor (optional)",
+          "window_azimuth": "Window azimuth (0-359)",
+          "window_view_left": "Window view left angle",
+          "window_view_right": "Window view right angle"
+        },
+        "data_description": {
+          "cover_entity": "Your blind/shutter entity",
+          "lux_sensor": "Light level sensor",
+          "temp_sensor": "Optional temperature sensor for heat protection",
+          "window_azimuth": "Direction window faces (180=South, 270=West, 90=East)",
+          "window_view_left": "Angle of view to the left (0-180). 90=unobstructed.",
+          "window_view_right": "Angle of view to the right (0-180). 90=unobstructed."
+        }
       }
     },
     "abort": {
@@ -71,6 +91,7 @@
         "menu_options": {
           "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
           "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
+          "features": "⚙️ Enable/Disable Features",
           "entities": "🔧 Reconfigure Entities (Cover, Sensor)"
         }
       },
@@ -118,9 +139,27 @@
           "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
         }
       },
+      "features": {
+        "title": "Feature Toggles",
+        "description": "Enable or disable specific automation rules.",
+        "data": {
+          "enable_privacy_hour": "Privacy Hour",
+          "enable_high_lux_protection": "High Lux Protection",
+          "enable_heat_protection": "Heat Protection",
+          "enable_low_lux_reopen": "Low Lux Reopen",
+          "enable_sun_elevation_tracking": "Sun Elevation Tracking"
+        },
+        "data_description": {
+          "enable_privacy_hour": "Auto-close blinds at configured privacy hour.",
+          "enable_high_lux_protection": "Close blinds when direct sun and bright light detected.",
+          "enable_heat_protection": "Close blinds during heat protection hours if temperature is high.",
+          "enable_low_lux_reopen": "Open blinds when light is low.",
+          "enable_sun_elevation_tracking": "Base automation: adjust blinds based on sun elevation."
+        }
+      },
       "entities": {
         "title": "Entity Configuration",
-        "description": "Change cover/sensor entities or window orientation. Integration will reload.",
+        "description": "Change cover/sensor entities or window orientation.",
         "data": {
           "cover_entity": "Blinds cover entity",
           "lux_sensor": "Lux sensor",
