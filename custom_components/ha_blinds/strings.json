@@ -18,42 +18,6 @@
           "window_view_right": "Angle of view to the right from the center of the window (0-180). E.g., 90 means an unobstructed view to the right."
         }
       },
-      "options": {
-        "title": "HA Blinds Tuning",
-        "description": "Set thresholds, debounce, and movement profile. Changes take effect immediately.",
-        "data": {
-          "lux_close_summer": "Summer Close Lux",
-          "lux_open_summer": "Summer Open Lux",
-          "lux_close_winter": "Winter Close Lux",
-          "lux_open_winter": "Winter Open Lux",
-          "debounce_minutes": "Debounce (minutes)",
-          "tick_minutes": "Tick (minutes)",
-          "max_step_per_tick": "Max step per tick (%)",
-          "heat_start_hour": "Heat start hour",
-          "heat_end_hour": "Heat end hour",
-          "heat_position": "Heat position (%)",
-          "temp_threshold": "Temperature threshold (°C)",
-          "winter_privacy_hour": "Winter privacy hour",
-          "summer_privacy_hour": "Summer privacy hour",
-          "manual_override_minutes": "Manual override (minutes)"
-        },
-        "data_description": {
-          "lux_close_summer": "Lux threshold to close blinds in summer. Higher = close only in bright sun. Recommended: 35000.",
-          "lux_open_summer": "Lux threshold to open blinds in summer. Should be lower than close lux. Recommended: 20000.",
-          "lux_close_winter": "Lux threshold to close blinds in winter. Winter sun is lower, might be lower than summer. Recommended: 20000.",
-          "lux_open_winter": "Lux threshold to open blinds in winter. Recommended: 12000.",
-          "debounce_minutes": "Minutes to wait before reacting to lux changes to prevent flapping. Recommended: 5-10.",
-          "tick_minutes": "Frequency of checking/updating blind position in minutes. Recommended: 5.",
-          "max_step_per_tick": "Max position change per tick to make movement smoother. Recommended: 10.",
-          "heat_start_hour": "Hour to start heat protection mode (0-23). Recommended: 10.",
-          "heat_end_hour": "Hour to end heat protection mode (0-23). Recommended: 17.",
-          "heat_position": "Blind position during heat protection (0-100). Recommended: 20.",
-          "temp_threshold": "Temperature above which heat protection activates if an indoor temp sensor is provided. Recommended: 24.0.",
-          "winter_privacy_hour": "Hour to close blinds for privacy in winter (0-23). Recommended: 16.",
-          "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19.",
-          "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
-        }
-      },
       "reconfigure": {
         "title": "Reconfigure HA Blinds",
         "description": "Update your blind cover entity, lux sensor, or window orientation.",
@@ -76,7 +40,8 @@
       }
     },
     "abort": {
-      "already_configured": "Cover entity is already configured."
+      "already_configured": "Cover entity is already configured.",
+      "reconfigure_successful": "Configuration updated successfully. Integration reloaded."
     },
     "error": {
       "invalid_azimuth": "Azimuth must be between 0 and 359.",
