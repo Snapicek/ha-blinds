@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any, Callable
 
-from .const import CONF_ENABLED
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceRegistry
@@ -26,6 +25,7 @@ from .const import (
     CONF_ENABLE_LOW_LUX_REOPEN,
     CONF_ENABLE_PRIVACY_HOUR,
     CONF_ENABLE_SUN_ELEVATION_TRACKING,
+    CONF_ENABLED,
     CONF_HEAT_END_HOUR,
     CONF_HEAT_POSITION,
     CONF_HEAT_START_HOUR,
@@ -130,6 +130,14 @@ class HaBlindsController:
         await self._async_evaluate()
 
     async def _async_evaluate(self) -> None:
+        # ── Enabled check ────────────────────────────────────────────────────
+        if not self._cfg(CONF_ENABLED):
+            self._runtime.last_reason = "disabled"
+            self._update_state_attributes()
+            _LOGGER.debug("HA Blinds [%s] automation disabled – skipping evaluation.", self.entry.entry_id)
+            return
+        # ─────────────────────────────────────────────────────────────────────
+
         now = dt_util.now()
 
         cover_entity = str(self._cfg(CONF_COVER_ENTITY))
@@ -207,7 +215,7 @@ class HaBlindsController:
 
     def _update_state_attributes(self) -> None:
         """Update diagnostic attributes in state."""
-        if not self._runtime.last_decision_time:
+        if not self._runtime.last_decision_time and self._runtime.last_reason != "disabled":
             return
 
         cover_entity = str(self._cfg(CONF_COVER_ENTITY))
@@ -215,9 +223,17 @@ class HaBlindsController:
         if self._runtime.paused_until:
             paused_until_str = self._runtime.paused_until.isoformat()
 
+        enabled = bool(self._cfg(CONF_ENABLED))
+        if not enabled:
+            status = "disabled"
+        elif self._runtime.paused_until:
+            status = "paused"
+        else:
+            status = "active"
+
         self.hass.states.async_set(
             f"{DOMAIN}.{self.entry.entry_id}_status",
-            "active" if not self._runtime.paused_until else "paused",
+            status,
             attributes={
                 "last_reason": self._runtime.last_reason,
                 "last_target": self._runtime.last_target,
@@ -226,6 +242,7 @@ class HaBlindsController:
                 "cover_entity": cover_entity,
                 "error_count": self._runtime.error_count,
                 "sun_at_window": self._runtime.sun_at_window,
+                "enabled": enabled,
             },
         )
         async_dispatcher_send(self.hass, self._signal)
@@ -235,7 +252,7 @@ class HaBlindsController:
             return self.entry.options[key]
         if key in self.entry.data:
             return self.entry.data[key]
-        return DEFAULTS.get(key)
+        return DEFAULTS.get(key, True if key == CONF_ENABLED else None)
 
     def _decision_config(self) -> DecisionConfig:
         return DecisionConfig(
@@ -285,6 +302,7 @@ class HaBlindsController:
             "last_decision_time": self._runtime.last_decision_time.isoformat() if self._runtime.last_decision_time else None,
             "error_count": self._runtime.error_count,
             "sun_at_window": self._runtime.sun_at_window,
+            "enabled": bool(self._cfg(CONF_ENABLED)),
         }
 
     def async_add_listener(self, callback) -> Callable:
