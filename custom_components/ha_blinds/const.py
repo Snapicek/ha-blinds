@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "ha_blinds"
-
+CONF_ENABLED = "enabled"   # <- add this
 CONF_COVER_ENTITY = "cover_entity"
 CONF_LUX_SENSOR = "lux_sensor"
 CONF_TEMP_SENSOR = "temp_sensor"
