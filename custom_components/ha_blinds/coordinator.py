@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any, Callable
 
+from .const import CONF_ENABLED
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceRegistry
