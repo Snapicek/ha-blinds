@@ -1,397 +1,225 @@
-"""Config flow for HA Blinds."""
+"""
+Patch for config_flow.py – add async_step_reconfigure to HABlindsConfigFlow.
 
-from __future__ import annotations
+Paste this block INSIDE the HABlindsConfigFlow class, right after async_step_user
+(or wherever your other step handlers live).
 
-from typing import Any
+It mirrors the exact same 5-step flow used during initial setup but pre-fills
+every field with the current saved values so the user only changes what they want.
+"""
 
-import voluptuous as vol
-from homeassistant import config_entries
-from homeassistant.helpers import selector as sel
+# ── In config_flow.py, add this import if not already present ──────────────
+# from homeassistant.config_entries import ConfigEntry   # already imported normally
 
-from .const import (
-    CONF_COVER_ENTITY,
-    CONF_DEBOUNCE_MINUTES,
-    CONF_ENABLE_HEAT_PROTECTION,
-    CONF_ENABLE_HIGH_LUX_PROTECTION,
-    CONF_ENABLE_LOW_LUX_REOPEN,
-    CONF_ENABLE_PRIVACY_HOUR,
-    CONF_ENABLE_SUN_ELEVATION_TRACKING,
-    CONF_HEAT_END_HOUR,
-    CONF_HEAT_POSITION,
-    CONF_HEAT_START_HOUR,
-    CONF_LUX_CLOSE_SUMMER,
-    CONF_LUX_CLOSE_WINTER,
-    CONF_LUX_OPEN_SUMMER,
-    CONF_LUX_OPEN_WINTER,
-    CONF_LUX_SENSOR,
-    CONF_MANUAL_OVERRIDE_MINUTES,
-    CONF_MAX_STEP_PER_TICK,
-    CONF_SUMMER_PRIVACY_HOUR,
-    CONF_TEMP_SENSOR,
-    CONF_TEMP_THRESHOLD,
-    CONF_TICK_MINUTES,
-    CONF_WINDOW_AZIMUTH,
-    CONF_WINDOW_VIEW_LEFT,
-    CONF_WINDOW_VIEW_RIGHT,
-    CONF_WINTER_PRIVACY_HOUR,
-    DEFAULTS,
-    DOMAIN,
-)
+# ── Add CONF_ENABLED to your const.py imports ──────────────────────────────
+# from .const import (DOMAIN, CONF_ENABLED, CONF_COVER, CONF_LUX_SENSOR,
+#     CONF_TEMP_SENSOR, CONF_AZIMUTH, CONF_VIEW_LEFT, CONF_VIEW_RIGHT,
+#     CONF_TICK_MINUTES, CONF_MAX_STEP, CONF_DEBOUNCE_MINUTES,
+#     CONF_LUX_CLOSE_SUMMER, CONF_LUX_OPEN_SUMMER,
+#     CONF_LUX_CLOSE_WINTER, CONF_LUX_OPEN_WINTER,
+#     CONF_HEAT_START_HOUR, CONF_HEAT_END_HOUR,
+#     CONF_HEAT_POSITION, CONF_TEMP_THRESHOLD,
+#     CONF_WINTER_PRIVACY_HOUR, CONF_SUMMER_PRIVACY_HOUR,
+#     CONF_MANUAL_OVERRIDE_MINUTES,
+#     DEFAULT_TICK, DEFAULT_MAX_STEP, DEFAULT_DEBOUNCE,
+#     DEFAULT_LUX_CLOSE_SUMMER, DEFAULT_LUX_OPEN_SUMMER,
+#     DEFAULT_LUX_CLOSE_WINTER, DEFAULT_LUX_OPEN_WINTER,
+#     DEFAULT_HEAT_START, DEFAULT_HEAT_END, DEFAULT_HEAT_POSITION,
+#     DEFAULT_TEMP_THRESHOLD, DEFAULT_WINTER_PRIVACY, DEFAULT_SUMMER_PRIVACY,
+#     DEFAULT_MANUAL_OVERRIDE)
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  RECONFIGURE – mirrors the 5-step initial setup, pre-filled with saved values
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def _convert_time_inputs(user_input: dict[str, Any]) -> None:
-    """Convert HH:MM time strings to integer hours in-place."""
-    for time_key in [CONF_HEAT_START_HOUR, CONF_HEAT_END_HOUR, CONF_WINTER_PRIVACY_HOUR, CONF_SUMMER_PRIVACY_HOUR]:
-        if time_key in user_input and isinstance(user_input[time_key], str):
-            user_input[time_key] = int(user_input[time_key].split(":")[0])
+    async def async_step_reconfigure(
+        self, user_input: dict | None = None
+    ):
+        """Entry point called when user clicks Reconfigure in Settings → Devices & Services."""
+        # Merge existing data + options so we always have defaults to fall back on
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        self._current_data = {**entry.data, **entry.options}
+        return await self.async_step_reconfigure_entities(user_input=None)
 
+    # ── Step 1: Entities ──────────────────────────────────────────────────────
+    async def async_step_reconfigure_entities(
+        self, user_input: dict | None = None
+    ):
+        errors: dict[str, str] = {}
+        cur = self._current_data
 
-def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
-    schema = {
-        vol.Required(CONF_COVER_ENTITY): sel.EntitySelector(
-            sel.EntitySelectorConfig(domain="cover")
-        ),
-        vol.Required(CONF_LUX_SENSOR): sel.EntitySelector(
-            sel.EntitySelectorConfig(domain="sensor", device_class="illuminance")
-        ),
-        vol.Optional(CONF_TEMP_SENSOR): sel.EntitySelector(
-            sel.EntitySelectorConfig(domain="sensor", device_class="temperature")
-        ),
-        vol.Required(
-            CONF_WINDOW_AZIMUTH,
-            default=int(defaults.get(CONF_WINDOW_AZIMUTH, DEFAULTS[CONF_WINDOW_AZIMUTH])),
-        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=359)),
-        vol.Required(
-            CONF_WINDOW_VIEW_LEFT,
-            default=int(defaults.get(CONF_WINDOW_VIEW_LEFT, DEFAULTS[CONF_WINDOW_VIEW_LEFT])),
-        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
-        vol.Required(
-            CONF_WINDOW_VIEW_RIGHT,
-            default=int(defaults.get(CONF_WINDOW_VIEW_RIGHT, DEFAULTS[CONF_WINDOW_VIEW_RIGHT])),
-        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
-    }
-
-    if CONF_COVER_ENTITY in defaults:
-        schema[vol.Required(CONF_COVER_ENTITY, default=defaults[CONF_COVER_ENTITY])] = schema.pop(vol.Required(CONF_COVER_ENTITY))
-    if CONF_LUX_SENSOR in defaults:
-        schema[vol.Required(CONF_LUX_SENSOR, default=defaults[CONF_LUX_SENSOR])] = schema.pop(vol.Required(CONF_LUX_SENSOR))
-    if CONF_TEMP_SENSOR in defaults:
-        schema[vol.Optional(CONF_TEMP_SENSOR, description={"suggested_value": defaults[CONF_TEMP_SENSOR]})] = schema.pop(vol.Optional(CONF_TEMP_SENSOR))
-
-    return vol.Schema(schema)
-
-
-def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
-    return vol.Schema(
-        {
-            vol.Required(CONF_LUX_CLOSE_SUMMER, default=int(defaults.get(CONF_LUX_CLOSE_SUMMER, DEFAULTS[CONF_LUX_CLOSE_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=1000, max=120000)),
-            vol.Required(CONF_LUX_OPEN_SUMMER, default=int(defaults.get(CONF_LUX_OPEN_SUMMER, DEFAULTS[CONF_LUX_OPEN_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_LUX_CLOSE_WINTER, default=int(defaults.get(CONF_LUX_CLOSE_WINTER, DEFAULTS[CONF_LUX_CLOSE_WINTER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_LUX_OPEN_WINTER, default=int(defaults.get(CONF_LUX_OPEN_WINTER, DEFAULTS[CONF_LUX_OPEN_WINTER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_DEBOUNCE_MINUTES, default=int(defaults.get(CONF_DEBOUNCE_MINUTES, DEFAULTS[CONF_DEBOUNCE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
-            vol.Required(CONF_TICK_MINUTES, default=int(defaults.get(CONF_TICK_MINUTES, DEFAULTS[CONF_TICK_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
-            vol.Required(CONF_MAX_STEP_PER_TICK, default=int(defaults.get(CONF_MAX_STEP_PER_TICK, DEFAULTS[CONF_MAX_STEP_PER_TICK]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
-            vol.Required(CONF_HEAT_START_HOUR, default=f"{int(defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_HEAT_END_HOUR, default=f"{int(defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_HEAT_POSITION, default=int(defaults.get(CONF_HEAT_POSITION, DEFAULTS[CONF_HEAT_POSITION]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
-            vol.Required(CONF_TEMP_THRESHOLD, default=float(defaults.get(CONF_TEMP_THRESHOLD, DEFAULTS[CONF_TEMP_THRESHOLD]))): vol.All(vol.Coerce(float), vol.Range(min=10, max=40)),
-            vol.Required(CONF_WINTER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
-        }
-    )
-
-
-class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for HA Blinds."""
-
-    VERSION = 1
-
-    async def async_step_user(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
-            await self.async_set_unique_id(user_input[CONF_COVER_ENTITY])
-            self._abort_if_unique_id_configured()
-            self.context["user_data"] = user_input
-            return await self.async_step_options()
+            self._reconfigure_partial = {**user_input}
+            return await self.async_step_reconfigure_orientation(user_input=None)
 
-        errors = {}
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_COVER,
+                    default=cur.get(CONF_COVER, vol.UNDEFINED),
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="cover")
+                ),
+                vol.Required(
+                    CONF_LUX_SENSOR,
+                    default=cur.get(CONF_LUX_SENSOR, vol.UNDEFINED),
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
+                vol.Optional(
+                    CONF_TEMP_SENSOR,
+                    default=cur.get(CONF_TEMP_SENSOR, vol.UNDEFINED),
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
+            }
+        )
         return self.async_show_form(
-            step_id="user",
-            data_schema=_entry_schema({}),
+            step_id="reconfigure_entities",
+            data_schema=schema,
             errors=errors,
-            description_placeholders={
-                "setup_info": "Select your blind cover entity, a lux sensor, and define your window orientation.",
-            },
+            description_placeholders={"step": "1 / 5"},
         )
 
-    async def async_step_options(self, user_input: dict[str, Any] | None = None):
-        if user_input is not None:
-            data = dict(self.context.get("user_data", {}))
-            if not data:
-                return self.async_abort(reason="unknown")
-            if not user_input.get(CONF_TEMP_SENSOR):
-                user_input.pop(CONF_TEMP_SENSOR, None)
-            # Convert time strings back to integers
-            _convert_time_inputs(user_input)
-            return self.async_create_entry(
-                title=f"HA Blinds ({data[CONF_COVER_ENTITY]})",
-                data=data,
-                options=user_input,
-            )
+    # ── Step 2: Window Orientation ────────────────────────────────────────────
+    async def async_step_reconfigure_orientation(
+        self, user_input: dict | None = None
+    ):
+        errors: dict[str, str] = {}
+        cur = self._current_data
 
-        return self.async_show_form(step_id="options", data_schema=_options_schema(DEFAULTS), errors={})
-
-    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None):
-        """Reconfigure step to update entities or window orientation."""
-        config_entry = self._get_reconfigure_entry()
-        
         if user_input is not None:
-            if not user_input.get(CONF_TEMP_SENSOR):
-                user_input.pop(CONF_TEMP_SENSOR, None)
-            
-            # Convert time strings back to integers
-            _convert_time_inputs(user_input)
-            
-            # Extract entity/orientation data
-            entity_fields = {k: v for k, v in user_input.items() if k in [
-                CONF_COVER_ENTITY, CONF_LUX_SENSOR, CONF_TEMP_SENSOR, 
-                CONF_WINDOW_AZIMUTH, CONF_WINDOW_VIEW_LEFT, CONF_WINDOW_VIEW_RIGHT
-            ]}
-            
-            # Check for unique ID collision if cover entity changed
-            new_cover = entity_fields.get(CONF_COVER_ENTITY)
-            if new_cover and new_cover != config_entry.data.get(CONF_COVER_ENTITY):
-                await self.async_set_unique_id(new_cover)
-                self._abort_if_unique_id_configured()
-            
-            return self.async_update_reload_and_abort(
-                config_entry,
-                data={**config_entry.data, **entity_fields},
-                reason="reconfigure_successful",
-            )
-        
-        defaults = {**config_entry.data, **config_entry.options}
+            self._reconfigure_partial.update(user_input)
+            return await self.async_step_reconfigure_lux(user_input=None)
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_AZIMUTH,
+                    default=cur.get(CONF_AZIMUTH, 180),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=359, step=1, mode="box")
+                ),
+                vol.Required(
+                    CONF_VIEW_LEFT,
+                    default=cur.get(CONF_VIEW_LEFT, 90),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=180, step=1, mode="box")
+                ),
+                vol.Required(
+                    CONF_VIEW_RIGHT,
+                    default=cur.get(CONF_VIEW_RIGHT, 90),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=180, step=1, mode="box")
+                ),
+            }
+        )
         return self.async_show_form(
-            step_id="reconfigure",
-            data_schema=_entry_schema(defaults),
-            description_placeholders={
-                "setup_info": "Update your blind cover entity, lux sensor, or window orientation.",
-            },
+            step_id="reconfigure_orientation",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"step": "2 / 5"},
         )
 
-    @staticmethod
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        return HaBlindsOptionsFlow()
+    # ── Step 3: Lux Thresholds ────────────────────────────────────────────────
+    async def async_step_reconfigure_lux(
+        self, user_input: dict | None = None
+    ):
+        errors: dict[str, str] = {}
+        cur = self._current_data
 
-
-class HaBlindsOptionsFlow(config_entries.OptionsFlow):
-    """Options flow for HA Blinds."""
-
-
-    async def async_step_init(self, user_input: dict[str, Any] | None = None):
-        """Show main options menu."""
-        return self.async_show_menu(
-            step_id="init",
-            menu_options={
-                "check_state": "📊 Check Current State & Evaluate",
-                "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
-                "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
-                "features": "⚙️ Enable/Disable Features",
-                "entities": "🔧 Reconfigure Entities (Cover, Sensor)",
-            },
-            description_placeholders={
-                "info": "Choose what to configure",
-            },
-        )
-
-    async def async_step_check_state(self, user_input: dict[str, Any] | None = None):
-        """Check current state of entities and trigger evaluation."""
         if user_input is not None:
-            # Trigger evaluate_now service
-            await self.hass.services.async_call(
-                DOMAIN,
-                "evaluate_now",
-                {"entry_id": self.config_entry.entry_id},
-            )
-            # Return to init menu
-            return await self.async_step_init()
+            self._reconfigure_partial.update(user_input)
+            return await self.async_step_reconfigure_heat(user_input=None)
 
-        # Get current entity states
-        cover_entity = str(self.config_entry.data.get(CONF_COVER_ENTITY, ""))
-        lux_entity = str(self.config_entry.data.get(CONF_LUX_SENSOR, ""))
-        temp_entity = self.config_entry.data.get(CONF_TEMP_SENSOR)
-
-        cover_state = self.hass.states.get(cover_entity)
-        lux_state = self.hass.states.get(lux_entity)
-        temp_state = self.hass.states.get(str(temp_entity)) if temp_entity else None
-        sun_state = self.hass.states.get("sun.sun")
-
-        # Build state info
-        info_text = "**Current Entity States:**\n\n"
-        
-        if cover_state:
-            position = cover_state.attributes.get("current_position", "Unknown")
-            info_text += f"🪟 **Cover:** {cover_entity}\n   Position: {position}%\n\n"
-        else:
-            info_text += f"🪟 **Cover:** {cover_entity}\n   ⚠️ State: Unavailable\n\n"
-
-        if lux_state:
-            lux_value = lux_state.state
-            info_text += f"💡 **Lux Sensor:** {lux_entity}\n   Value: {lux_value} lux\n\n"
-        else:
-            info_text += f"💡 **Lux Sensor:** {lux_entity}\n   ⚠️ State: Unavailable\n\n"
-
-        if temp_entity:
-            if temp_state:
-                temp_value = temp_state.state
-                info_text += f"🌡️ **Temperature Sensor:** {str(temp_entity)}\n   Value: {temp_value}°C\n\n"
-            else:
-                info_text += f"🌡️ **Temperature Sensor:** {str(temp_entity)}\n   ⚠️ State: Unavailable\n\n"
-        else:
-            info_text += f"🌡️ **Temperature Sensor:** Not configured\n\n"
-
-        if sun_state:
-            elevation = sun_state.attributes.get("elevation", "Unknown")
-            azimuth = sun_state.attributes.get("azimuth", "Unknown")
-            info_text += f"☀️ **Sun:**\n   Elevation: {elevation}°\n   Azimuth: {azimuth}°\n\n"
-        else:
-            info_text += f"☀️ **Sun:** ⚠️ State Unavailable\n\n"
-
-        # Get last automation result from coordinator
-        status_entity = f"{DOMAIN}.{self.config_entry.entry_id}_status"
-        status_state = self.hass.states.get(status_entity)
-        if status_state:
-            last_reason = status_state.attributes.get("last_reason", "Unknown")
-            last_target = status_state.attributes.get("last_target", "Unknown")
-            info_text += f"⚙️ **Last Automation Result:**\n   Reason: {last_reason}\n   Target Position: {last_target}%\n"
-
-        # Show form with state info and "Check Now" button
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_LUX_CLOSE_SUMMER, default=cur.get(CONF_LUX_CLOSE_SUMMER, DEFAULT_LUX_CLOSE_SUMMER)): selector.NumberSelector(selector.NumberSelectorConfig(min=1000, max=120000, step=500, mode="box")),
+                vol.Required(CONF_LUX_OPEN_SUMMER,  default=cur.get(CONF_LUX_OPEN_SUMMER,  DEFAULT_LUX_OPEN_SUMMER )):  selector.NumberSelector(selector.NumberSelectorConfig(min=500,  max=120000, step=500, mode="box")),
+                vol.Required(CONF_LUX_CLOSE_WINTER, default=cur.get(CONF_LUX_CLOSE_WINTER, DEFAULT_LUX_CLOSE_WINTER)): selector.NumberSelector(selector.NumberSelectorConfig(min=500,  max=120000, step=500, mode="box")),
+                vol.Required(CONF_LUX_OPEN_WINTER,  default=cur.get(CONF_LUX_OPEN_WINTER,  DEFAULT_LUX_OPEN_WINTER )):  selector.NumberSelector(selector.NumberSelectorConfig(min=500,  max=120000, step=500, mode="box")),
+            }
+        )
         return self.async_show_form(
-            step_id="check_state",
-            data_schema=vol.Schema({}),
-            description_placeholders={
-                "state_info": info_text,
-            },
+            step_id="reconfigure_lux",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"step": "3 / 5"},
         )
 
-    async def async_step_thresholds(self, user_input: dict[str, Any] | None = None):
-        """Threshold configuration."""
+    # ── Step 4: Heat Protection ───────────────────────────────────────────────
+    async def async_step_reconfigure_heat(
+        self, user_input: dict | None = None
+    ):
+        errors: dict[str, str] = {}
+        cur = self._current_data
+
         if user_input is not None:
-            if not user_input.get(CONF_TEMP_SENSOR):
-                user_input.pop(CONF_TEMP_SENSOR, None)
-            _convert_time_inputs(user_input)
-            # Merge with existing options
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
+            self._reconfigure_partial.update(user_input)
+            return await self.async_step_reconfigure_timing(user_input=None)
 
-        defaults = {**DEFAULTS, **self.config_entry.options}
-        schema_dict = {
-            vol.Required(CONF_LUX_CLOSE_SUMMER, default=int(defaults.get(CONF_LUX_CLOSE_SUMMER, DEFAULTS[CONF_LUX_CLOSE_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=1000, max=120000)),
-            vol.Required(CONF_LUX_OPEN_SUMMER, default=int(defaults.get(CONF_LUX_OPEN_SUMMER, DEFAULTS[CONF_LUX_OPEN_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_LUX_CLOSE_WINTER, default=int(defaults.get(CONF_LUX_CLOSE_WINTER, DEFAULTS[CONF_LUX_CLOSE_WINTER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_LUX_OPEN_WINTER, default=int(defaults.get(CONF_LUX_OPEN_WINTER, DEFAULTS[CONF_LUX_OPEN_WINTER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_HEAT_START_HOUR, default=f"{int(defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_HEAT_END_HOUR, default=f"{int(defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_HEAT_POSITION, default=int(defaults.get(CONF_HEAT_POSITION, DEFAULTS[CONF_HEAT_POSITION]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
-            vol.Required(CONF_TEMP_THRESHOLD, default=float(defaults.get(CONF_TEMP_THRESHOLD, DEFAULTS[CONF_TEMP_THRESHOLD]))): vol.All(vol.Coerce(float), vol.Range(min=10, max=40)),
-            vol.Required(CONF_WINTER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-        }
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_HEAT_START_HOUR,  default=cur.get(CONF_HEAT_START_HOUR,  DEFAULT_HEAT_START    )): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=23, step=1, mode="box")),
+                vol.Required(CONF_HEAT_END_HOUR,    default=cur.get(CONF_HEAT_END_HOUR,    DEFAULT_HEAT_END      )): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=23, step=1, mode="box")),
+                vol.Required(CONF_HEAT_POSITION,    default=cur.get(CONF_HEAT_POSITION,    DEFAULT_HEAT_POSITION )): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=100, step=1, mode="box")),
+                vol.Required(CONF_TEMP_THRESHOLD,   default=cur.get(CONF_TEMP_THRESHOLD,   DEFAULT_TEMP_THRESHOLD)): selector.NumberSelector(selector.NumberSelectorConfig(min=10, max=40, step=0.5, mode="box")),
+            }
+        )
         return self.async_show_form(
-            step_id="thresholds",
-            data_schema=vol.Schema(schema_dict),
-            description_placeholders={
-                "help": "Adjust lux thresholds, heat protection, and privacy hours",
-            },
+            step_id="reconfigure_heat",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"step": "4 / 5"},
         )
 
-    async def async_step_timing(self, user_input: dict[str, Any] | None = None):
-        """Timing configuration."""
+    # ── Step 5: Timing & Privacy ──────────────────────────────────────────────
+    async def async_step_reconfigure_timing(
+        self, user_input: dict | None = None
+    ):
+        errors: dict[str, str] = {}
+        cur = self._current_data
+
         if user_input is not None:
-            # Merge with existing options
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
+            self._reconfigure_partial.update(user_input)
+            # All 5 steps done – save and reload
+            return await self._async_finish_reconfigure(self._reconfigure_partial)
 
-        defaults = {**DEFAULTS, **self.config_entry.options}
-        schema_dict = {
-            vol.Required(CONF_TICK_MINUTES, default=int(defaults.get(CONF_TICK_MINUTES, DEFAULTS[CONF_TICK_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
-            vol.Required(CONF_MAX_STEP_PER_TICK, default=int(defaults.get(CONF_MAX_STEP_PER_TICK, DEFAULTS[CONF_MAX_STEP_PER_TICK]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
-            vol.Required(CONF_DEBOUNCE_MINUTES, default=int(defaults.get(CONF_DEBOUNCE_MINUTES, DEFAULTS[CONF_DEBOUNCE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
-            vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
-        }
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_TICK_MINUTES,           default=cur.get(CONF_TICK_MINUTES,           DEFAULT_TICK            )): selector.NumberSelector(selector.NumberSelectorConfig(min=1,  max=30,  step=1,  mode="box")),
+                vol.Required(CONF_MAX_STEP,               default=cur.get(CONF_MAX_STEP,               DEFAULT_MAX_STEP        )): selector.NumberSelector(selector.NumberSelectorConfig(min=1,  max=50,  step=1,  mode="box")),
+                vol.Required(CONF_DEBOUNCE_MINUTES,       default=cur.get(CONF_DEBOUNCE_MINUTES,       DEFAULT_DEBOUNCE        )): selector.NumberSelector(selector.NumberSelectorConfig(min=1,  max=30,  step=1,  mode="box")),
+                vol.Required(CONF_WINTER_PRIVACY_HOUR,    default=cur.get(CONF_WINTER_PRIVACY_HOUR,    DEFAULT_WINTER_PRIVACY  )): selector.NumberSelector(selector.NumberSelectorConfig(min=0,  max=23,  step=1,  mode="box")),
+                vol.Required(CONF_SUMMER_PRIVACY_HOUR,    default=cur.get(CONF_SUMMER_PRIVACY_HOUR,    DEFAULT_SUMMER_PRIVACY  )): selector.NumberSelector(selector.NumberSelectorConfig(min=0,  max=23,  step=1,  mode="box")),
+                vol.Required(CONF_MANUAL_OVERRIDE_MINUTES,default=cur.get(CONF_MANUAL_OVERRIDE_MINUTES,DEFAULT_MANUAL_OVERRIDE )): selector.NumberSelector(selector.NumberSelectorConfig(min=5,  max=240, step=5,  mode="box")),
+            }
+        )
         return self.async_show_form(
-            step_id="timing",
-            data_schema=vol.Schema(schema_dict),
-            description_placeholders={
-                "help": "Adjust check frequency, movement speed, and response timing",
-            },
+            step_id="reconfigure_timing",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"step": "5 / 5"},
         )
 
-    async def async_step_features(self, user_input: dict[str, Any] | None = None):
-        """Feature toggles - enable/disable specific rules."""
-        if user_input is not None:
-            # Merge with existing options
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
+    # ── Finish: persist and reload ────────────────────────────────────────────
+    async def _async_finish_reconfigure(self, data: dict):
+        """Save all reconfigured values back to the config entry and reload."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
-        defaults = {**DEFAULTS, **self.config_entry.options}
-        schema_dict = {
-            vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=defaults.get(CONF_ENABLE_PRIVACY_HOUR, DEFAULTS[CONF_ENABLE_PRIVACY_HOUR])): sel.BooleanSelector(),
-            vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=defaults.get(CONF_ENABLE_HIGH_LUX_PROTECTION, DEFAULTS[CONF_ENABLE_HIGH_LUX_PROTECTION])): sel.BooleanSelector(),
-            vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=defaults.get(CONF_ENABLE_HEAT_PROTECTION, DEFAULTS[CONF_ENABLE_HEAT_PROTECTION])): sel.BooleanSelector(),
-            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=defaults.get(CONF_ENABLE_LOW_LUX_REOPEN, DEFAULTS[CONF_ENABLE_LOW_LUX_REOPEN])): sel.BooleanSelector(),
-            vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=defaults.get(CONF_ENABLE_SUN_ELEVATION_TRACKING, DEFAULTS[CONF_ENABLE_SUN_ELEVATION_TRACKING])): sel.BooleanSelector(),
-        }
-        return self.async_show_form(
-            step_id="features",
-            data_schema=vol.Schema(schema_dict),
-            description_placeholders={
-                "help": "Enable or disable specific automation rules",
-            },
+        # Split: entity/orientation keys go to entry.data, tuning keys go to options
+        _DATA_KEYS = {CONF_COVER, CONF_LUX_SENSOR, CONF_TEMP_SENSOR,
+                      CONF_AZIMUTH, CONF_VIEW_LEFT, CONF_VIEW_RIGHT}
+        new_data    = {k: v for k, v in data.items() if k in _DATA_KEYS}
+        new_options = {k: v for k, v in data.items() if k not in _DATA_KEYS}
+
+        # Preserve the enabled flag so a reconfigure doesn't reset it
+        new_options[CONF_ENABLED] = entry.options.get(CONF_ENABLED, True)
+
+        self.hass.config_entries.async_update_entry(
+            entry,
+            data={**entry.data, **new_data},
+            options={**entry.options, **new_options},
         )
-
-    async def async_step_entities(self, user_input: dict[str, Any] | None = None):
-        """Reconfigure entities (cover, lux sensor)."""
-        if user_input is not None:
-            if not user_input.get(CONF_TEMP_SENSOR):
-                user_input.pop(CONF_TEMP_SENSOR, None)
-            _convert_time_inputs(user_input)
-            # Merge with existing options
-            new_options = dict(self.config_entry.options)
-            new_options.update(user_input)
-            return self.async_create_entry(title="", data=new_options)
-
-        defaults = {**self.config_entry.data, **self.config_entry.options}
-        schema_dict = {
-            vol.Required(CONF_COVER_ENTITY, default=defaults.get(CONF_COVER_ENTITY)): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="cover")
-            ),
-            vol.Required(CONF_LUX_SENSOR, default=defaults.get(CONF_LUX_SENSOR)): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="sensor", device_class="illuminance")
-            ),
-            vol.Optional(CONF_TEMP_SENSOR, description={"suggested_value": defaults.get(CONF_TEMP_SENSOR, "")}): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="sensor", device_class="temperature")
-            ),
-            vol.Required(
-                CONF_WINDOW_AZIMUTH,
-                default=int(defaults.get(CONF_WINDOW_AZIMUTH, DEFAULTS[CONF_WINDOW_AZIMUTH])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=359)),
-            vol.Required(
-                CONF_WINDOW_VIEW_LEFT,
-                default=int(defaults.get(CONF_WINDOW_VIEW_LEFT, DEFAULTS[CONF_WINDOW_VIEW_LEFT])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
-            vol.Required(
-                CONF_WINDOW_VIEW_RIGHT,
-                default=int(defaults.get(CONF_WINDOW_VIEW_RIGHT, DEFAULTS[CONF_WINDOW_VIEW_RIGHT])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
-        }
-        return self.async_show_form(
-            step_id="entities",
-            data_schema=vol.Schema(schema_dict),
-            description_placeholders={
-                "help": "Change cover/sensor entities or window orientation. Integration will reload.",
-            },
-        )
+        await self.hass.config_entries.async_reload(entry.entry_id)
+        return self.async_abort(reason="reconfigure_successful")
