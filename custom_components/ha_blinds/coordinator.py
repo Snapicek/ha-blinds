@@ -20,6 +20,11 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send, async_dispat
 from .const import (
     CONF_COVER_ENTITY,
     CONF_DEBOUNCE_MINUTES,
+    CONF_ENABLE_HEAT_PROTECTION,
+    CONF_ENABLE_HIGH_LUX_PROTECTION,
+    CONF_ENABLE_LOW_LUX_REOPEN,
+    CONF_ENABLE_PRIVACY_HOUR,
+    CONF_ENABLE_SUN_ELEVATION_TRACKING,
     CONF_HEAT_END_HOUR,
     CONF_HEAT_POSITION,
     CONF_HEAT_START_HOUR,
@@ -247,6 +252,11 @@ class HaBlindsController:
             temp_threshold=float(self._cfg(CONF_TEMP_THRESHOLD)),
             winter_privacy_hour=int(self._cfg(CONF_WINTER_PRIVACY_HOUR)),
             summer_privacy_hour=int(self._cfg(CONF_SUMMER_PRIVACY_HOUR)),
+            enable_heat_protection=bool(self._cfg(CONF_ENABLE_HEAT_PROTECTION)),
+            enable_high_lux_protection=bool(self._cfg(CONF_ENABLE_HIGH_LUX_PROTECTION)),
+            enable_low_lux_reopen=bool(self._cfg(CONF_ENABLE_LOW_LUX_REOPEN)),
+            enable_privacy_hour=bool(self._cfg(CONF_ENABLE_PRIVACY_HOUR)),
+            enable_sun_elevation_tracking=bool(self._cfg(CONF_ENABLE_SUN_ELEVATION_TRACKING)),
         )
 
     def _float_state(self, entity_id: str) -> float | None:

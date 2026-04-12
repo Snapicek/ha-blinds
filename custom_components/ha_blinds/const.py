@@ -26,6 +26,13 @@ CONF_WINTER_PRIVACY_HOUR = "winter_privacy_hour"
 CONF_SUMMER_PRIVACY_HOUR = "summer_privacy_hour"
 CONF_MANUAL_OVERRIDE_MINUTES = "manual_override_minutes"
 
+# Feature toggles - enable/disable specific rules
+CONF_ENABLE_HEAT_PROTECTION = "enable_heat_protection"
+CONF_ENABLE_HIGH_LUX_PROTECTION = "enable_high_lux_protection"
+CONF_ENABLE_LOW_LUX_REOPEN = "enable_low_lux_reopen"
+CONF_ENABLE_PRIVACY_HOUR = "enable_privacy_hour"
+CONF_ENABLE_SUN_ELEVATION_TRACKING = "enable_sun_elevation_tracking"
+
 SERVICE_PAUSE = "pause"
 SERVICE_RESUME = "resume"
 SERVICE_EVALUATE_NOW = "evaluate_now"
@@ -33,7 +40,7 @@ SERVICE_EVALUATE_NOW = "evaluate_now"
 ATTR_ENTRY_ID = "entry_id"
 ATTR_MINUTES = "minutes"
 
-DEFAULTS: dict[str, int | float] = {
+DEFAULTS: dict[str, int | float | bool] = {
     CONF_WINDOW_AZIMUTH: 240,
     CONF_WINDOW_VIEW_LEFT: 60,
     CONF_WINDOW_VIEW_RIGHT: 60,
@@ -51,5 +58,11 @@ DEFAULTS: dict[str, int | float] = {
     CONF_WINTER_PRIVACY_HOUR: 16,
     CONF_SUMMER_PRIVACY_HOUR: 19,
     CONF_MANUAL_OVERRIDE_MINUTES: 45,
+    # Feature toggles - all enabled by default
+    CONF_ENABLE_HEAT_PROTECTION: True,
+    CONF_ENABLE_HIGH_LUX_PROTECTION: True,
+    CONF_ENABLE_LOW_LUX_REOPEN: True,
+    CONF_ENABLE_PRIVACY_HOUR: True,
+    CONF_ENABLE_SUN_ELEVATION_TRACKING: True,
 }
 

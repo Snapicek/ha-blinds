@@ -11,6 +11,11 @@ from homeassistant.helpers import selector as sel
 from .const import (
     CONF_COVER_ENTITY,
     CONF_DEBOUNCE_MINUTES,
+    CONF_ENABLE_HEAT_PROTECTION,
+    CONF_ENABLE_HIGH_LUX_PROTECTION,
+    CONF_ENABLE_LOW_LUX_REOPEN,
+    CONF_ENABLE_PRIVACY_HOUR,
+    CONF_ENABLE_SUN_ELEVATION_TRACKING,
     CONF_HEAT_END_HOUR,
     CONF_HEAT_POSITION,
     CONF_HEAT_START_HOUR,
@@ -150,6 +155,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             menu_options={
                 "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
                 "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
+                "features": "⚙️ Enable/Disable Features",
                 "entities": "🔧 Reconfigure Entities (Cover, Sensor)",
             },
             description_placeholders={
@@ -208,6 +214,30 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema(schema_dict),
             description_placeholders={
                 "help": "Adjust check frequency, movement speed, and response timing",
+            },
+        )
+
+    async def async_step_features(self, user_input: dict[str, Any] | None = None):
+        """Feature toggles - enable/disable specific rules."""
+        if user_input is not None:
+            # Merge with existing options
+            options = dict(self.config_entry.options)
+            options.update(user_input)
+            return self.async_create_entry(title="", data=options)
+
+        defaults = {**DEFAULTS, **self.config_entry.options}
+        schema_dict = {
+            vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=defaults.get(CONF_ENABLE_PRIVACY_HOUR, DEFAULTS[CONF_ENABLE_PRIVACY_HOUR])): sel.BooleanSelector(),
+            vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=defaults.get(CONF_ENABLE_HIGH_LUX_PROTECTION, DEFAULTS[CONF_ENABLE_HIGH_LUX_PROTECTION])): sel.BooleanSelector(),
+            vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=defaults.get(CONF_ENABLE_HEAT_PROTECTION, DEFAULTS[CONF_ENABLE_HEAT_PROTECTION])): sel.BooleanSelector(),
+            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=defaults.get(CONF_ENABLE_LOW_LUX_REOPEN, DEFAULTS[CONF_ENABLE_LOW_LUX_REOPEN])): sel.BooleanSelector(),
+            vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=defaults.get(CONF_ENABLE_SUN_ELEVATION_TRACKING, DEFAULTS[CONF_ENABLE_SUN_ELEVATION_TRACKING])): sel.BooleanSelector(),
+        }
+        return self.async_show_form(
+            step_id="features",
+            data_schema=vol.Schema(schema_dict),
+            description_placeholders={
+                "help": "Enable or disable specific automation rules",
             },
         )
 

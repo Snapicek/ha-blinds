@@ -25,6 +25,12 @@ class DecisionConfig:
     temp_threshold: float
     winter_privacy_hour: int
     summer_privacy_hour: int
+    # Feature toggles
+    enable_heat_protection: bool = True
+    enable_high_lux_protection: bool = True
+    enable_low_lux_reopen: bool = True
+    enable_privacy_hour: bool = True
+    enable_sun_elevation_tracking: bool = True
 
 
 @dataclass
@@ -66,10 +72,13 @@ class DecisionEngine:
         if inputs.paused:
             return DecisionResult(False, inputs.current_position, "paused", sun_at_window)
 
-        privacy_hour = self.config.winter_privacy_hour if is_winter else self.config.summer_privacy_hour
-        if inputs.now.hour >= privacy_hour:
-            return self._result(inputs.current_position, 100, "privacy_hour", sun_at_window)
+        # Privacy hour (if enabled)
+        if self.config.enable_privacy_hour:
+            privacy_hour = self.config.winter_privacy_hour if is_winter else self.config.summer_privacy_hour
+            if inputs.now.hour >= privacy_hour:
+                return self._result(inputs.current_position, 100, "privacy_hour", sun_at_window)
 
+        # Night close (always active - safety feature)
         if inputs.sun_elevation < 0:
             return self._result(inputs.current_position, 100, "night_close", sun_at_window)
 
@@ -77,11 +86,14 @@ class DecisionEngine:
         open_threshold = self.config.lux_open_winter if is_winter else self.config.lux_open_summer
         self._update_debounce(inputs.now, inputs.lux, close_threshold, open_threshold)
 
-        if sun_at_window and self._debounced(self.state.high_lux_since, inputs.now):
+        # High lux protection (if enabled)
+        if self.config.enable_high_lux_protection and sun_at_window and self._debounced(self.state.high_lux_since, inputs.now):
             return self._result(inputs.current_position, 0, "direct_sun_high_lux", sun_at_window)
 
+        # Heat protection (if enabled)
         if (
-            not is_winter
+            self.config.enable_heat_protection
+            and not is_winter
             and sun_at_window
             and self._hour_in_range(inputs.now.hour, self.config.heat_start_hour, self.config.heat_end_hour)
         ):
@@ -92,15 +104,22 @@ class DecisionEngine:
                 sun_at_window,
             )
 
-        if sun_at_window and self._debounced(self.state.low_lux_since, inputs.now):
+        # Low lux reopen (if enabled)
+        if self.config.enable_low_lux_reopen and sun_at_window and self._debounced(self.state.low_lux_since, inputs.now):
             return self._result(inputs.current_position, 75, "low_lux_reopen", sun_at_window)
 
-        target = self._base_sun_target(inputs.sun_elevation)
-        if inputs.temperature is not None and not is_winter and sun_at_window:
-            if inputs.temperature >= self.config.temp_threshold:
-                target = min(target, 20)
+        # Sun elevation tracking (if enabled)
+        if self.config.enable_sun_elevation_tracking:
+            target = self._base_sun_target(inputs.sun_elevation)
+            if inputs.temperature is not None and not is_winter and sun_at_window:
+                if inputs.temperature >= self.config.temp_threshold:
+                    # During heat protection, close more (reduce from current target toward 0%)
+                    target = min(target, int(self.config.heat_position))
 
-        return self._result(inputs.current_position, target, "sun_elevation_tracking", sun_at_window)
+            return self._result(inputs.current_position, target, "sun_elevation_tracking", sun_at_window)
+        
+        # If sun tracking is disabled, maintain current position
+        return DecisionResult(False, inputs.current_position, "sun_tracking_disabled", sun_at_window)
 
     def _result(
         self,
@@ -156,15 +175,22 @@ class DecisionEngine:
 
     @staticmethod
     def _base_sun_target(elevation: float) -> int:
-        if elevation < 0:
-            return 100
-        if elevation < 5:
-            return max(60, int(100 - (elevation * 8)))
-        if elevation < 35:
-            return 75
-        if elevation < 50:
-            return 50
-        if elevation < 60:
-            return 30
-        return 100
+        """Calculate blind position based on sun elevation.
+        
+        Positions:
+        - 0% and 100% = CLOSED (different directions)
+        - 75% = MOST OPEN (horizontal slats - maximum light penetration)
+        
+        Strategy:
+        - Low elevation sun (<25°): Direct hit at eye level → CLOSE (0% or 100%)
+        - Medium elevation (25-50°): Sun angle less critical → MEDIUM OPEN (50-75%)
+        - High elevation (>50°): Sun from above → OPEN (75%)
+        """
+        if elevation < 10:
+            return 0  # Very low sun - close completely
+        if elevation < 25:
+            return 50  # Low sun angle - half open
+        if elevation < 40:
+            return 75  # Medium-high sun - open (sun not in eyes)
+        return 75  # High sun angle - fully open (sun from above)
 
