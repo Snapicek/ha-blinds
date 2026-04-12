@@ -4,7 +4,5 @@
   "domains": ["ha_blinds"],
   "content_in_root": false,
   "render_readme": true,
-  "iot_class": "local_polling",
-  "icon": "Icon_256.png",
-  "logo": "Logo_512.png"
+  "iot_class": "local_polling"
 }
