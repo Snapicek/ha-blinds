@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import (
+    CONF_ENABLE_HEAT_PROTECTION,
+    CONF_ENABLE_HIGH_LUX_PROTECTION,
+    CONF_ENABLE_LOW_LUX_REOPEN,
+    CONF_ENABLE_PRIVACY_HOUR,
+    CONF_ENABLE_SUN_ELEVATION_TRACKING,
+    DEFAULTS,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,6 +35,11 @@ async def async_setup_entry(
 
     entities = [
         HaBlindsAutomationSwitch(coordinator, entry),
+        HaBlindsPrivacyHourSwitch(coordinator, entry),
+        HaBlindsHighLuxProtectionSwitch(coordinator, entry),
+        HaBlindsHeatProtectionSwitch(coordinator, entry),
+        HaBlindsLowLuxReopenSwitch(coordinator, entry),
+        HaBlindsSunElevationTrackingSwitch(coordinator, entry),
     ]
 
     async_add_entities(entities)
@@ -56,6 +70,22 @@ class HaBlindsBaseSwitch(SwitchEntity):
             self.coordinator.async_add_listener(self.async_write_ha_state)
         )
 
+    def _cfg(self, key: str) -> Any:
+        """Get configuration value."""
+        if key in self.entry.options:
+            return self.entry.options[key]
+        if key in self.entry.data:
+            return self.entry.data[key]
+        return DEFAULTS.get(key)
+
+    async def _async_update_config(self, key: str, value: bool) -> None:
+        """Update configuration."""
+        options = dict(self.entry.options)
+        options[key] = value
+        await self.hass.config_entries.async_update_entry(
+            self.entry, options=options
+        )
+
 
 class HaBlindsAutomationSwitch(HaBlindsBaseSwitch):
     """Automation switch."""
@@ -83,3 +113,144 @@ class HaBlindsAutomationSwitch(HaBlindsBaseSwitch):
     async def async_turn_off(self, **kwargs):
         """Turn the entity off."""
         await self.coordinator.async_pause()
+
+
+class HaBlindsPrivacyHourSwitch(HaBlindsBaseSwitch):
+    """Privacy hour feature switch."""
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self.entry.entry_id}_privacy_hour_enabled"
+
+    @property
+    def name(self) -> str:
+        return "Privacy Hour Enabled"
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._cfg(CONF_ENABLE_PRIVACY_HOUR))
+
+    @property
+    def icon(self) -> str:
+        return "mdi:moon-waning-crescent" if self.is_on else "mdi:moon-new"
+
+    async def async_turn_on(self, **kwargs):
+        """Turn on privacy hour."""
+        await self._async_update_config(CONF_ENABLE_PRIVACY_HOUR, True)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn off privacy hour."""
+        await self._async_update_config(CONF_ENABLE_PRIVACY_HOUR, False)
+
+
+class HaBlindsHighLuxProtectionSwitch(HaBlindsBaseSwitch):
+    """High lux protection feature switch."""
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self.entry.entry_id}_high_lux_protection_enabled"
+
+    @property
+    def name(self) -> str:
+        return "High Lux Protection Enabled"
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._cfg(CONF_ENABLE_HIGH_LUX_PROTECTION))
+
+    @property
+    def icon(self) -> str:
+        return "mdi:brightness-7" if self.is_on else "mdi:brightness-6"
+
+    async def async_turn_on(self, **kwargs):
+        """Turn on high lux protection."""
+        await self._async_update_config(CONF_ENABLE_HIGH_LUX_PROTECTION, True)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn off high lux protection."""
+        await self._async_update_config(CONF_ENABLE_HIGH_LUX_PROTECTION, False)
+
+
+class HaBlindsHeatProtectionSwitch(HaBlindsBaseSwitch):
+    """Heat protection feature switch."""
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self.entry.entry_id}_heat_protection_enabled"
+
+    @property
+    def name(self) -> str:
+        return "Heat Protection Enabled"
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._cfg(CONF_ENABLE_HEAT_PROTECTION))
+
+    @property
+    def icon(self) -> str:
+        return "mdi:thermometer" if self.is_on else "mdi:thermometer-off"
+
+    async def async_turn_on(self, **kwargs):
+        """Turn on heat protection."""
+        await self._async_update_config(CONF_ENABLE_HEAT_PROTECTION, True)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn off heat protection."""
+        await self._async_update_config(CONF_ENABLE_HEAT_PROTECTION, False)
+
+
+class HaBlindsLowLuxReopenSwitch(HaBlindsBaseSwitch):
+    """Low lux reopen feature switch."""
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self.entry.entry_id}_low_lux_reopen_enabled"
+
+    @property
+    def name(self) -> str:
+        return "Low Lux Reopen Enabled"
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._cfg(CONF_ENABLE_LOW_LUX_REOPEN))
+
+    @property
+    def icon(self) -> str:
+        return "mdi:brightness-5" if self.is_on else "mdi:brightness-4"
+
+    async def async_turn_on(self, **kwargs):
+        """Turn on low lux reopen."""
+        await self._async_update_config(CONF_ENABLE_LOW_LUX_REOPEN, True)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn off low lux reopen."""
+        await self._async_update_config(CONF_ENABLE_LOW_LUX_REOPEN, False)
+
+
+class HaBlindsSunElevationTrackingSwitch(HaBlindsBaseSwitch):
+    """Sun elevation tracking feature switch."""
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self.entry.entry_id}_sun_tracking_enabled"
+
+    @property
+    def name(self) -> str:
+        return "Sun Elevation Tracking Enabled"
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._cfg(CONF_ENABLE_SUN_ELEVATION_TRACKING))
+
+    @property
+    def icon(self) -> str:
+        return "mdi:sun-compass" if self.is_on else "mdi:sun-off"
+
+    async def async_turn_on(self, **kwargs):
+        """Turn on sun tracking."""
+        await self._async_update_config(CONF_ENABLE_SUN_ELEVATION_TRACKING, True)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn off sun tracking."""
+        await self._async_update_config(CONF_ENABLE_SUN_ELEVATION_TRACKING, False)
+

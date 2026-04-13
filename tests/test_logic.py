@@ -22,6 +22,7 @@ def _cfg() -> DecisionConfig:
         temp_threshold=24.0,
         winter_privacy_hour=16,
         summer_privacy_hour=19,
+        night_close_position=0,
     )
 
 

@@ -25,6 +25,7 @@ class DecisionConfig:
     temp_threshold: float
     winter_privacy_hour: int
     summer_privacy_hour: int
+    night_close_position: int = 0  # 0% or 100% for night/sunset closure
     # Feature toggles
     enable_heat_protection: bool = True
     enable_high_lux_protection: bool = True
@@ -76,11 +77,11 @@ class DecisionEngine:
         if self.config.enable_privacy_hour:
             privacy_hour = self.config.winter_privacy_hour if is_winter else self.config.summer_privacy_hour
             if inputs.now.hour >= privacy_hour:
-                return self._result(inputs.current_position, 100, "privacy_hour", sun_at_window)
+                return self._result(inputs.current_position, self.config.night_close_position, "privacy_hour", sun_at_window)
 
         # Night close (always active - safety feature)
         if inputs.sun_elevation < 0:
-            return self._result(inputs.current_position, 100, "night_close", sun_at_window)
+            return self._result(inputs.current_position, self.config.night_close_position, "night_close", sun_at_window)
 
         close_threshold = self.config.lux_close_winter if is_winter else self.config.lux_close_summer
         open_threshold = self.config.lux_open_winter if is_winter else self.config.lux_open_summer

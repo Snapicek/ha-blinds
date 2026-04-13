@@ -25,6 +25,7 @@ CONF_TEMP_THRESHOLD = "temp_threshold"
 CONF_WINTER_PRIVACY_HOUR = "winter_privacy_hour"
 CONF_SUMMER_PRIVACY_HOUR = "summer_privacy_hour"
 CONF_MANUAL_OVERRIDE_MINUTES = "manual_override_minutes"
+CONF_NIGHT_CLOSE_POSITION = "night_close_position"
 
 # Feature toggles - enable/disable specific rules
 CONF_ENABLE_HEAT_PROTECTION = "enable_heat_protection"
@@ -64,5 +65,7 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_ENABLE_LOW_LUX_REOPEN: True,
     CONF_ENABLE_PRIVACY_HOUR: True,
     CONF_ENABLE_SUN_ELEVATION_TRACKING: True,
+    # Night close position: 0% (closed) or 100% (privacy mode)
+    CONF_NIGHT_CLOSE_POSITION: 0,
 }
 

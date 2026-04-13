@@ -26,6 +26,7 @@ from .const import (
     CONF_LUX_SENSOR,
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
+    CONF_NIGHT_CLOSE_POSITION,
     CONF_SUMMER_PRIVACY_HOUR,
     CONF_TEMP_SENSOR,
     CONF_TEMP_THRESHOLD,
@@ -44,6 +45,13 @@ def _convert_time_inputs(user_input: dict[str, Any]) -> None:
     for time_key in [CONF_HEAT_START_HOUR, CONF_HEAT_END_HOUR, CONF_WINTER_PRIVACY_HOUR, CONF_SUMMER_PRIVACY_HOUR]:
         if time_key in user_input and isinstance(user_input[time_key], str):
             user_input[time_key] = int(user_input[time_key].split(":")[0])
+
+
+def _convert_night_close_position(user_input: dict[str, Any]) -> None:
+    """Convert night close position string to integer in-place."""
+    if CONF_NIGHT_CLOSE_POSITION in user_input and isinstance(user_input[CONF_NIGHT_CLOSE_POSITION], str):
+        # Extract the numeric value from "0 (Closed)" or "100 (Privacy Mode)"
+        user_input[CONF_NIGHT_CLOSE_POSITION] = int(user_input[CONF_NIGHT_CLOSE_POSITION].split()[0])
 
 
 def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -98,6 +106,7 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_WINTER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
+            vol.Required(CONF_NIGHT_CLOSE_POSITION, default=int(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION]))): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
         }
     )
 
@@ -133,6 +142,7 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input.pop(CONF_TEMP_SENSOR, None)
             # Convert time strings back to integers
             _convert_time_inputs(user_input)
+            _convert_night_close_position(user_input)
             return self.async_create_entry(
                 title=f"HA Blinds ({data[CONF_COVER_ENTITY]})",
                 data=data,
@@ -151,7 +161,8 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             # Convert time strings back to integers
             _convert_time_inputs(user_input)
-            
+            _convert_night_close_position(user_input)
+
             # Extract entity/orientation data
             entity_fields = {k: v for k, v in user_input.items() if k in [
                 CONF_COVER_ENTITY, CONF_LUX_SENSOR, CONF_TEMP_SENSOR, 
@@ -193,10 +204,8 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options={
-                "check_state": "📊 Check Current State & Evaluate",
                 "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
                 "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
-                "features": "⚙️ Enable/Disable Features",
                 "entities": "🔧 Reconfigure Entities (Cover, Sensor)",
             },
             description_placeholders={
@@ -204,75 +213,6 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             },
         )
 
-    async def async_step_check_state(self, user_input: dict[str, Any] | None = None):
-        """Check current state of entities and trigger evaluation."""
-        if user_input is not None:
-            # Trigger evaluate_now service
-            await self.hass.services.async_call(
-                DOMAIN,
-                "evaluate_now",
-                {"entry_id": self.config_entry.entry_id},
-            )
-            # Return to init menu
-            return await self.async_step_init()
-
-        # Get current entity states
-        cover_entity = str(self.config_entry.data.get(CONF_COVER_ENTITY, ""))
-        lux_entity = str(self.config_entry.data.get(CONF_LUX_SENSOR, ""))
-        temp_entity = self.config_entry.data.get(CONF_TEMP_SENSOR)
-
-        cover_state = self.hass.states.get(cover_entity)
-        lux_state = self.hass.states.get(lux_entity)
-        temp_state = self.hass.states.get(str(temp_entity)) if temp_entity else None
-        sun_state = self.hass.states.get("sun.sun")
-
-        # Build state info
-        info_text = "**Current Entity States:**\n\n"
-        
-        if cover_state:
-            position = cover_state.attributes.get("current_position", "Unknown")
-            info_text += f"🪟 **Cover:** {cover_entity}\n   Position: {position}%\n\n"
-        else:
-            info_text += f"🪟 **Cover:** {cover_entity}\n   ⚠️ State: Unavailable\n\n"
-
-        if lux_state:
-            lux_value = lux_state.state
-            info_text += f"💡 **Lux Sensor:** {lux_entity}\n   Value: {lux_value} lux\n\n"
-        else:
-            info_text += f"💡 **Lux Sensor:** {lux_entity}\n   ⚠️ State: Unavailable\n\n"
-
-        if temp_entity:
-            if temp_state:
-                temp_value = temp_state.state
-                info_text += f"🌡️ **Temperature Sensor:** {str(temp_entity)}\n   Value: {temp_value}°C\n\n"
-            else:
-                info_text += f"🌡️ **Temperature Sensor:** {str(temp_entity)}\n   ⚠️ State: Unavailable\n\n"
-        else:
-            info_text += f"🌡️ **Temperature Sensor:** Not configured\n\n"
-
-        if sun_state:
-            elevation = sun_state.attributes.get("elevation", "Unknown")
-            azimuth = sun_state.attributes.get("azimuth", "Unknown")
-            info_text += f"☀️ **Sun:**\n   Elevation: {elevation}°\n   Azimuth: {azimuth}°\n\n"
-        else:
-            info_text += f"☀️ **Sun:** ⚠️ State Unavailable\n\n"
-
-        # Get last automation result from coordinator
-        status_entity = f"{DOMAIN}.{self.config_entry.entry_id}_status"
-        status_state = self.hass.states.get(status_entity)
-        if status_state:
-            last_reason = status_state.attributes.get("last_reason", "Unknown")
-            last_target = status_state.attributes.get("last_target", "Unknown")
-            info_text += f"⚙️ **Last Automation Result:**\n   Reason: {last_reason}\n   Target Position: {last_target}%\n"
-
-        # Show form with state info and "Check Now" button
-        return self.async_show_form(
-            step_id="check_state",
-            data_schema=vol.Schema({}),
-            description_placeholders={
-                "state_info": info_text,
-            },
-        )
 
     async def async_step_thresholds(self, user_input: dict[str, Any] | None = None):
         """Threshold configuration."""
@@ -280,6 +220,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             if not user_input.get(CONF_TEMP_SENSOR):
                 user_input.pop(CONF_TEMP_SENSOR, None)
             _convert_time_inputs(user_input)
+            _convert_night_close_position(user_input)
             # Merge with existing options
             options = dict(self.config_entry.options)
             options.update(user_input)
@@ -297,6 +238,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             vol.Required(CONF_TEMP_THRESHOLD, default=float(defaults.get(CONF_TEMP_THRESHOLD, DEFAULTS[CONF_TEMP_THRESHOLD]))): vol.All(vol.Coerce(float), vol.Range(min=10, max=40)),
             vol.Required(CONF_WINTER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
+            vol.Required(CONF_NIGHT_CLOSE_POSITION, default=f"{int(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION]))} (Closed)" if int(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION])) == 0 else "100 (Privacy Mode)"): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
         }
         return self.async_show_form(
             step_id="thresholds",
@@ -329,29 +271,6 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             },
         )
 
-    async def async_step_features(self, user_input: dict[str, Any] | None = None):
-        """Feature toggles - enable/disable specific rules."""
-        if user_input is not None:
-            # Merge with existing options
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
-
-        defaults = {**DEFAULTS, **self.config_entry.options}
-        schema_dict = {
-            vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=defaults.get(CONF_ENABLE_PRIVACY_HOUR, DEFAULTS[CONF_ENABLE_PRIVACY_HOUR])): sel.BooleanSelector(),
-            vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=defaults.get(CONF_ENABLE_HIGH_LUX_PROTECTION, DEFAULTS[CONF_ENABLE_HIGH_LUX_PROTECTION])): sel.BooleanSelector(),
-            vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=defaults.get(CONF_ENABLE_HEAT_PROTECTION, DEFAULTS[CONF_ENABLE_HEAT_PROTECTION])): sel.BooleanSelector(),
-            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=defaults.get(CONF_ENABLE_LOW_LUX_REOPEN, DEFAULTS[CONF_ENABLE_LOW_LUX_REOPEN])): sel.BooleanSelector(),
-            vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=defaults.get(CONF_ENABLE_SUN_ELEVATION_TRACKING, DEFAULTS[CONF_ENABLE_SUN_ELEVATION_TRACKING])): sel.BooleanSelector(),
-        }
-        return self.async_show_form(
-            step_id="features",
-            data_schema=vol.Schema(schema_dict),
-            description_placeholders={
-                "help": "Enable or disable specific automation rules",
-            },
-        )
 
     async def async_step_entities(self, user_input: dict[str, Any] | None = None):
         """Reconfigure entities (cover, lux sensor)."""
