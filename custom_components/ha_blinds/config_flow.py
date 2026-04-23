@@ -290,11 +290,11 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
         schema_dict = {
             vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=bool(defaults.get(CONF_ENABLE_SUNSET_CLOSING, DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]))): bool,
             vol.Optional(CONF_SUNSET_ENTITY, description={"suggested_value": defaults.get(CONF_SUNSET_ENTITY, "")}): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="sun")
+                sel.EntitySelectorConfig()
             ),
             vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNSET_OFFSET_MINUTES, DEFAULTS[CONF_SUNSET_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
             vol.Optional(CONF_SUNRISE_ENTITY, description={"suggested_value": defaults.get(CONF_SUNRISE_ENTITY, "")}): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="sun")
+                sel.EntitySelectorConfig()
             ),
             vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNRISE_OFFSET_MINUTES, DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
         }
