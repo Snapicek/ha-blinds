@@ -34,6 +34,13 @@ CONF_ENABLE_LOW_LUX_REOPEN = "enable_low_lux_reopen"
 CONF_ENABLE_PRIVACY_HOUR = "enable_privacy_hour"
 CONF_ENABLE_SUN_ELEVATION_TRACKING = "enable_sun_elevation_tracking"
 
+# Sunset/Sunrise feature
+CONF_ENABLE_SUNSET_CLOSING = "enable_sunset_closing"
+CONF_SUNRISE_ENTITY = "sunrise_entity"
+CONF_SUNSET_ENTITY = "sunset_entity"
+CONF_SUNRISE_OFFSET_MINUTES = "sunrise_offset_minutes"
+CONF_SUNSET_OFFSET_MINUTES = "sunset_offset_minutes"
+
 SERVICE_PAUSE = "pause"
 SERVICE_RESUME = "resume"
 SERVICE_EVALUATE_NOW = "evaluate_now"
@@ -67,5 +74,9 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_ENABLE_SUN_ELEVATION_TRACKING: True,
     # Night close position: 0% (closed) or 100% (privacy mode)
     CONF_NIGHT_CLOSE_POSITION: 0,
+    # Sunset/Sunrise feature
+    CONF_ENABLE_SUNSET_CLOSING: False,
+    CONF_SUNRISE_OFFSET_MINUTES: 0,
+    CONF_SUNSET_OFFSET_MINUTES: 0,
 }
 

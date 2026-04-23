@@ -203,21 +203,21 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     """Options flow for HA Blinds."""
 
-
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
-         """Show main options menu."""
-         return self.async_show_menu(
-             step_id="init",
-             menu_options={
-                 "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
-                 "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
-                 "sunset": "🌅 Sunset/Sunrise Settings",
-                 "entities": "🔧 Reconfigure Entities (Cover, Sensor)",
-             },
-             description_placeholders={
-                 "info": "Choose what to configure",
-             },
-         )
+        """Show main options menu."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options={
+                "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
+                "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
+                "sunset": "🌅 Sunset/Sunrise Settings",
+                "features": "⚙️ Enable/Disable Features",
+                "entities": "🔧 Reconfigure Entities (Cover, Sensor)",
+            },
+            description_placeholders={
+                "info": "Choose what to configure",
+            },
+        )
 
 
     async def async_step_thresholds(self, user_input: dict[str, Any] | None = None):
@@ -303,6 +303,30 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema(schema_dict),
             description_placeholders={
                 "help": "Configure sunset/sunrise based blind closing with time offsets",
+            },
+        )
+
+    async def async_step_features(self, user_input: dict[str, Any] | None = None):
+        """Feature toggles configuration."""
+        if user_input is not None:
+            # Merge with existing options
+            options = dict(self.config_entry.options)
+            options.update(user_input)
+            return self.async_create_entry(title="", data=options)
+
+        defaults = {**DEFAULTS, **self.config_entry.options}
+        schema_dict = {
+            vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=bool(defaults.get(CONF_ENABLE_PRIVACY_HOUR, DEFAULTS[CONF_ENABLE_PRIVACY_HOUR]))): bool,
+            vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=bool(defaults.get(CONF_ENABLE_HIGH_LUX_PROTECTION, DEFAULTS[CONF_ENABLE_HIGH_LUX_PROTECTION]))): bool,
+            vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=bool(defaults.get(CONF_ENABLE_HEAT_PROTECTION, DEFAULTS[CONF_ENABLE_HEAT_PROTECTION]))): bool,
+            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=bool(defaults.get(CONF_ENABLE_LOW_LUX_REOPEN, DEFAULTS[CONF_ENABLE_LOW_LUX_REOPEN]))): bool,
+            vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=bool(defaults.get(CONF_ENABLE_SUN_ELEVATION_TRACKING, DEFAULTS[CONF_ENABLE_SUN_ELEVATION_TRACKING]))): bool,
+        }
+        return self.async_show_form(
+            step_id="features",
+            data_schema=vol.Schema(schema_dict),
+            description_placeholders={
+                "help": "Enable or disable specific automation rules",
             },
         )
 

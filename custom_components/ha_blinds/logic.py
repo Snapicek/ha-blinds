@@ -32,6 +32,12 @@ class DecisionConfig:
     enable_low_lux_reopen: bool = True
     enable_privacy_hour: bool = True
     enable_sun_elevation_tracking: bool = True
+    # Sunset/Sunrise feature
+    enable_sunset_closing: bool = False
+    sunrise_entity: str | None = None
+    sunset_entity: str | None = None
+    sunrise_offset_minutes: int = 0
+    sunset_offset_minutes: int = 0
 
 
 @dataclass
@@ -43,6 +49,8 @@ class DecisionInputs:
     temperature: float | None
     current_position: int
     paused: bool
+    sunrise_time: datetime | None = None
+    sunset_time: datetime | None = None
 
 
 @dataclass
@@ -72,6 +80,11 @@ class DecisionEngine:
 
         if inputs.paused:
             return DecisionResult(False, inputs.current_position, "paused", sun_at_window)
+
+        # Sunset closing (if enabled)
+        if self.config.enable_sunset_closing and inputs.sunset_time is not None:
+            if inputs.now >= inputs.sunset_time:
+                return self._result(inputs.current_position, self.config.night_close_position, "sunset_closing", sun_at_window)
 
         # Privacy hour (if enabled)
         if self.config.enable_privacy_hour:
