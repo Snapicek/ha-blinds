@@ -25,6 +25,7 @@ class DecisionConfig:
     temp_threshold: float
     winter_privacy_hour: int
     summer_privacy_hour: int
+    privacy_duration_minutes: int = 480  # 8 hours default
     night_close_position: int = 0  # 0% or 100% for night/sunset closure
     # Feature toggles
     enable_heat_protection: bool = True
@@ -51,6 +52,7 @@ class DecisionInputs:
     paused: bool
     sunrise_time: datetime | None = None
     sunset_time: datetime | None = None
+    privacy_entered_at: datetime | None = None  # When privacy hour was first triggered
 
 
 @dataclass
@@ -89,7 +91,14 @@ class DecisionEngine:
         # Privacy hour (if enabled)
         if self.config.enable_privacy_hour:
             privacy_hour = self.config.winter_privacy_hour if is_winter else self.config.summer_privacy_hour
-            if inputs.now.hour >= privacy_hour:
+            privacy_duration = timedelta(minutes=self.config.privacy_duration_minutes)
+            privacy_end_time = inputs.privacy_entered_at + privacy_duration if inputs.privacy_entered_at else None
+
+            # Check if we're in privacy hour window or still within privacy duration
+            in_privacy_hour = inputs.now.hour >= privacy_hour
+            still_in_duration = privacy_end_time and inputs.now < privacy_end_time
+
+            if in_privacy_hour or still_in_duration:
                 return self._result(inputs.current_position, self.config.night_close_position, "privacy_hour", sun_at_window)
 
         # Night close (always active - safety feature)

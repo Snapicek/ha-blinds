@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
@@ -37,6 +38,7 @@ from .const import (
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
     CONF_NIGHT_CLOSE_POSITION,
+    CONF_PRIVACY_DURATION_MINUTES,
     CONF_SUMMER_PRIVACY_HOUR,
     CONF_SUNRISE_ENTITY,
     CONF_SUNRISE_OFFSET_MINUTES,
@@ -49,6 +51,7 @@ from .const import (
     CONF_WINDOW_VIEW_LEFT,
     CONF_WINDOW_VIEW_RIGHT,
     CONF_WINTER_PRIVACY_HOUR,
+    CONF_ZIGBEE_DELAY_SECONDS,
     DEFAULTS,
     DOMAIN,
 )
@@ -60,6 +63,7 @@ _LOGGER = logging.getLogger(__name__)
 @dataclass
 class _RuntimeState:
     paused_until: datetime | None = None
+    privacy_entered_at: datetime | None = None  # Track when privacy hour was first triggered
     last_reason: str = "startup"
     last_target: int | None = None
     last_decision_time: datetime | None = None
@@ -177,11 +181,22 @@ class HaBlindsController:
             paused=paused,
             sunrise_time=sunrise_time,
             sunset_time=sunset_time,
+            privacy_entered_at=self._runtime.privacy_entered_at,
         )
         result = self._engine.evaluate(inputs)
         self._runtime.last_reason = result.reason
         self._runtime.last_decision_time = now
         self._runtime.sun_at_window = result.sun_at_window
+
+        # Track when privacy hour was entered
+        is_winter = now.month in (11, 12, 1, 2, 3)
+        privacy_hour = int(self._cfg(CONF_WINTER_PRIVACY_HOUR)) if is_winter else int(self._cfg(CONF_SUMMER_PRIVACY_HOUR))
+        if result.reason == "privacy_hour" and self._runtime.privacy_entered_at is None:
+            # Just entered privacy hour
+            self._runtime.privacy_entered_at = now
+        elif result.reason != "privacy_hour":
+            # Left privacy hour
+            self._runtime.privacy_entered_at = None
 
         if not result.should_move:
             self._update_state_attributes()
@@ -193,6 +208,11 @@ class HaBlindsController:
             target = min(target, current_position + step)
         else:
             target = max(target, current_position - step)
+
+        # Apply Zigbee delay to avoid overwhelming network
+        zigbee_delay = float(self._cfg(CONF_ZIGBEE_DELAY_SECONDS))
+        if zigbee_delay > 0:
+            await asyncio.sleep(zigbee_delay)
 
         await self.hass.services.async_call(
             "cover",
@@ -264,6 +284,7 @@ class HaBlindsController:
             temp_threshold=float(self._cfg(CONF_TEMP_THRESHOLD)),
             winter_privacy_hour=int(self._cfg(CONF_WINTER_PRIVACY_HOUR)),
             summer_privacy_hour=int(self._cfg(CONF_SUMMER_PRIVACY_HOUR)),
+            privacy_duration_minutes=int(self._cfg(CONF_PRIVACY_DURATION_MINUTES)),
             night_close_position=int(self._cfg(CONF_NIGHT_CLOSE_POSITION)),
             enable_heat_protection=bool(self._cfg(CONF_ENABLE_HEAT_PROTECTION)),
             enable_high_lux_protection=bool(self._cfg(CONF_ENABLE_HIGH_LUX_PROTECTION)),

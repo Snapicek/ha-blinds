@@ -28,6 +28,7 @@ from .const import (
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
     CONF_NIGHT_CLOSE_POSITION,
+    CONF_PRIVACY_DURATION_MINUTES,
     CONF_SUMMER_PRIVACY_HOUR,
     CONF_SUNRISE_ENTITY,
     CONF_SUNRISE_OFFSET_MINUTES,
@@ -40,6 +41,7 @@ from .const import (
     CONF_WINDOW_VIEW_LEFT,
     CONF_WINDOW_VIEW_RIGHT,
     CONF_WINTER_PRIVACY_HOUR,
+    CONF_ZIGBEE_DELAY_SECONDS,
     DEFAULTS,
     DOMAIN,
 )
@@ -110,8 +112,26 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_TEMP_THRESHOLD, default=float(defaults.get(CONF_TEMP_THRESHOLD, DEFAULTS[CONF_TEMP_THRESHOLD]))): vol.All(vol.Coerce(float), vol.Range(min=10, max=40)),
             vol.Required(CONF_WINTER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
+            vol.Required(CONF_PRIVACY_DURATION_MINUTES, default=int(defaults.get(CONF_PRIVACY_DURATION_MINUTES, DEFAULTS[CONF_PRIVACY_DURATION_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=60, max=1440)),
             vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
             vol.Required(CONF_NIGHT_CLOSE_POSITION, default=int(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION]))): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
+            vol.Required(CONF_ZIGBEE_DELAY_SECONDS, default=int(defaults.get(CONF_ZIGBEE_DELAY_SECONDS, DEFAULTS[CONF_ZIGBEE_DELAY_SECONDS]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
+            # Sunset/Sunrise feature
+            vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=bool(defaults.get(CONF_ENABLE_SUNSET_CLOSING, DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]))): bool,
+            vol.Optional(CONF_SUNSET_ENTITY, description={"suggested_value": defaults.get(CONF_SUNSET_ENTITY, "")}): sel.EntitySelector(
+                sel.EntitySelectorConfig()
+            ),
+            vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNSET_OFFSET_MINUTES, DEFAULTS[CONF_SUNSET_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+            vol.Optional(CONF_SUNRISE_ENTITY, description={"suggested_value": defaults.get(CONF_SUNRISE_ENTITY, "")}): sel.EntitySelector(
+                sel.EntitySelectorConfig()
+            ),
+            vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNRISE_OFFSET_MINUTES, DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+            # Feature toggles
+            vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=bool(defaults.get(CONF_ENABLE_PRIVACY_HOUR, DEFAULTS[CONF_ENABLE_PRIVACY_HOUR]))): bool,
+            vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=bool(defaults.get(CONF_ENABLE_HIGH_LUX_PROTECTION, DEFAULTS[CONF_ENABLE_HIGH_LUX_PROTECTION]))): bool,
+            vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=bool(defaults.get(CONF_ENABLE_HEAT_PROTECTION, DEFAULTS[CONF_ENABLE_HEAT_PROTECTION]))): bool,
+            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=bool(defaults.get(CONF_ENABLE_LOW_LUX_REOPEN, DEFAULTS[CONF_ENABLE_LOW_LUX_REOPEN]))): bool,
+            vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=bool(defaults.get(CONF_ENABLE_SUN_ELEVATION_TRACKING, DEFAULTS[CONF_ENABLE_SUN_ELEVATION_TRACKING]))): bool,
         }
     )
 
@@ -157,42 +177,38 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="options", data_schema=_options_schema(DEFAULTS), errors={})
 
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None):
-        """Reconfigure step to update entities or window orientation."""
+        """Reconfigure step - just for updating entity IDs, not for editing settings."""
         config_entry = self._get_reconfigure_entry()
         
         if user_input is not None:
             if not user_input.get(CONF_TEMP_SENSOR):
                 user_input.pop(CONF_TEMP_SENSOR, None)
             
-            # Convert time strings back to integers
-            _convert_time_inputs(user_input)
-            _convert_night_close_position(user_input)
-
-            # Extract entity/orientation data
-            entity_fields = {k: v for k, v in user_input.items() if k in [
-                CONF_COVER_ENTITY, CONF_LUX_SENSOR, CONF_TEMP_SENSOR, 
-                CONF_WINDOW_AZIMUTH, CONF_WINDOW_VIEW_LEFT, CONF_WINDOW_VIEW_RIGHT
-            ]}
-            
             # Check for unique ID collision if cover entity changed
-            new_cover = entity_fields.get(CONF_COVER_ENTITY)
+            new_cover = user_input.get(CONF_COVER_ENTITY)
             if new_cover and new_cover != config_entry.data.get(CONF_COVER_ENTITY):
                 await self.async_set_unique_id(new_cover)
                 self._abort_if_unique_id_configured()
             
+            # Update only entity and window orientation data
             return self.async_update_reload_and_abort(
                 config_entry,
-                data={**config_entry.data, **entity_fields},
+                data={
+                    **config_entry.data,
+                    CONF_COVER_ENTITY: user_input.get(CONF_COVER_ENTITY, config_entry.data.get(CONF_COVER_ENTITY)),
+                    CONF_LUX_SENSOR: user_input.get(CONF_LUX_SENSOR, config_entry.data.get(CONF_LUX_SENSOR)),
+                    CONF_TEMP_SENSOR: user_input.get(CONF_TEMP_SENSOR, config_entry.data.get(CONF_TEMP_SENSOR)),
+                    CONF_WINDOW_AZIMUTH: user_input.get(CONF_WINDOW_AZIMUTH, config_entry.data.get(CONF_WINDOW_AZIMUTH)),
+                    CONF_WINDOW_VIEW_LEFT: user_input.get(CONF_WINDOW_VIEW_LEFT, config_entry.data.get(CONF_WINDOW_VIEW_LEFT)),
+                    CONF_WINDOW_VIEW_RIGHT: user_input.get(CONF_WINDOW_VIEW_RIGHT, config_entry.data.get(CONF_WINDOW_VIEW_RIGHT)),
+                },
                 reason="reconfigure_successful",
             )
         
-        defaults = {**config_entry.data, **config_entry.options}
+        defaults = config_entry.data
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=_entry_schema(defaults),
-            description_placeholders={
-                "setup_info": "Update your blind cover entity, lux sensor, or window orientation.",
-            },
         )
 
     @staticmethod

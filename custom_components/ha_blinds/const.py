@@ -24,8 +24,10 @@ CONF_HEAT_POSITION = "heat_position"
 CONF_TEMP_THRESHOLD = "temp_threshold"
 CONF_WINTER_PRIVACY_HOUR = "winter_privacy_hour"
 CONF_SUMMER_PRIVACY_HOUR = "summer_privacy_hour"
+CONF_PRIVACY_DURATION_MINUTES = "privacy_duration_minutes"
 CONF_MANUAL_OVERRIDE_MINUTES = "manual_override_minutes"
 CONF_NIGHT_CLOSE_POSITION = "night_close_position"
+CONF_ZIGBEE_DELAY_SECONDS = "zigbee_delay_seconds"
 
 # Feature toggles - enable/disable specific rules
 CONF_ENABLE_HEAT_PROTECTION = "enable_heat_protection"
@@ -65,7 +67,9 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_TEMP_THRESHOLD: 24.0,
     CONF_WINTER_PRIVACY_HOUR: 16,
     CONF_SUMMER_PRIVACY_HOUR: 19,
+    CONF_PRIVACY_DURATION_MINUTES: 480,  # 8 hours default
     CONF_MANUAL_OVERRIDE_MINUTES: 45,
+    CONF_ZIGBEE_DELAY_SECONDS: 0,  # 2 seconds delay for Zigbee devices
     # Feature toggles - all enabled by default
     CONF_ENABLE_HEAT_PROTECTION: True,
     CONF_ENABLE_HIGH_LUX_PROTECTION: True,
