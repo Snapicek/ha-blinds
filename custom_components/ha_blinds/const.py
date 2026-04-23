@@ -36,10 +36,8 @@ CONF_ENABLE_LOW_LUX_REOPEN = "enable_low_lux_reopen"
 CONF_ENABLE_PRIVACY_HOUR = "enable_privacy_hour"
 CONF_ENABLE_SUN_ELEVATION_TRACKING = "enable_sun_elevation_tracking"
 
-# Sunset/Sunrise feature
+# Sunset/Sunrise feature - uses sun.sun entity
 CONF_ENABLE_SUNSET_CLOSING = "enable_sunset_closing"
-CONF_SUNRISE_ENTITY = "sunrise_entity"
-CONF_SUNSET_ENTITY = "sunset_entity"
 CONF_SUNRISE_OFFSET_MINUTES = "sunrise_offset_minutes"
 CONF_SUNSET_OFFSET_MINUTES = "sunset_offset_minutes"
 

@@ -40,9 +40,7 @@ from .const import (
     CONF_NIGHT_CLOSE_POSITION,
     CONF_PRIVACY_DURATION_MINUTES,
     CONF_SUMMER_PRIVACY_HOUR,
-    CONF_SUNRISE_ENTITY,
     CONF_SUNRISE_OFFSET_MINUTES,
-    CONF_SUNSET_ENTITY,
     CONF_SUNSET_OFFSET_MINUTES,
     CONF_TEMP_SENSOR,
     CONF_TEMP_THRESHOLD,
@@ -139,102 +137,109 @@ class HaBlindsController:
         await self._async_evaluate()
 
     async def _async_evaluate(self) -> None:
-        now = dt_util.now()
+        try:
+            now = dt_util.now()
 
-        cover_entity = str(self._cfg(CONF_COVER_ENTITY))
-        cover_state = self.hass.states.get(cover_entity)
-        sun_state = self.hass.states.get("sun.sun")
-        if cover_state is None or sun_state is None:
-            self._runtime.error_count += 1
-            _LOGGER.warning("Missing state: cover=%s, sun=%s (error #%d)",
-                          cover_state is not None, sun_state is not None, self._runtime.error_count)
-            if self._runtime.error_count > 10:
-                _LOGGER.error("Too many errors, check if cover and sun entities exist")
-            return
+            cover_entity = str(self._cfg(CONF_COVER_ENTITY))
+            cover_state = self.hass.states.get(cover_entity)
+            sun_state = self.hass.states.get("sun.sun")
+            if cover_state is None or sun_state is None:
+                self._runtime.error_count += 1
+                _LOGGER.warning("Missing state: cover=%s, sun=%s (error #%d)",
+                              cover_state is not None, sun_state is not None, self._runtime.error_count)
+                if self._runtime.error_count > 10:
+                    _LOGGER.error("Too many errors, check if cover and sun entities exist")
+                return
 
-        self._runtime.error_count = 0
-        self._engine.config = self._decision_config()
+            self._runtime.error_count = 0
+            self._engine.config = self._decision_config()
 
-        current_position = int(cover_state.attributes.get("current_position", 75))
-        sun_azimuth = float(sun_state.attributes.get("azimuth", 0.0))
-        sun_elevation = float(sun_state.attributes.get("elevation", -90.0))
+            current_position = int(cover_state.attributes.get("current_position", 75))
+            sun_azimuth = float(sun_state.attributes.get("azimuth", 0.0))
+            sun_elevation = float(sun_state.attributes.get("elevation", -90.0))
 
-        lux = self._float_state(str(self._cfg(CONF_LUX_SENSOR)))
-        temp_entity = self._cfg(CONF_TEMP_SENSOR)
-        temperature = self._float_state(str(temp_entity)) if temp_entity else None
+            lux = self._float_state(str(self._cfg(CONF_LUX_SENSOR)))
+            temp_entity = self._cfg(CONF_TEMP_SENSOR)
+            temperature = self._float_state(str(temp_entity)) if temp_entity else None
 
-        # Get sunrise and sunset times with offsets
-        sunrise_time = self._get_sunrise_time(now)
-        sunset_time = self._get_sunset_time(now)
+            # Get sunrise and sunset times with offsets
+            sunrise_time = self._get_sunrise_time(now)
+            sunset_time = self._get_sunset_time(now)
 
-        paused = bool(self._runtime.paused_until and now < self._runtime.paused_until)
-        if self._runtime.paused_until and now >= self._runtime.paused_until:
-            self._runtime.paused_until = None
+            paused = bool(self._runtime.paused_until and now < self._runtime.paused_until)
+            if self._runtime.paused_until and now >= self._runtime.paused_until:
+                self._runtime.paused_until = None
 
-        inputs = DecisionInputs(
-            now=now,
-            sun_azimuth=sun_azimuth,
-            sun_elevation=sun_elevation,
-            lux=lux,
-            temperature=temperature,
-            current_position=current_position,
-            paused=paused,
-            sunrise_time=sunrise_time,
-            sunset_time=sunset_time,
-            privacy_entered_at=self._runtime.privacy_entered_at,
-        )
-        result = self._engine.evaluate(inputs)
-        self._runtime.last_reason = result.reason
-        self._runtime.last_decision_time = now
-        self._runtime.sun_at_window = result.sun_at_window
+            inputs = DecisionInputs(
+                now=now,
+                sun_azimuth=sun_azimuth,
+                sun_elevation=sun_elevation,
+                lux=lux,
+                temperature=temperature,
+                current_position=current_position,
+                paused=paused,
+                sunrise_time=sunrise_time,
+                sunset_time=sunset_time,
+                privacy_entered_at=self._runtime.privacy_entered_at,
+            )
+            result = self._engine.evaluate(inputs)
+            self._runtime.last_reason = result.reason
+            self._runtime.last_decision_time = now
+            self._runtime.sun_at_window = result.sun_at_window
 
-        # Track when privacy hour was entered
-        is_winter = now.month in (11, 12, 1, 2, 3)
-        privacy_hour = int(self._cfg(CONF_WINTER_PRIVACY_HOUR)) if is_winter else int(self._cfg(CONF_SUMMER_PRIVACY_HOUR))
-        if result.reason == "privacy_hour" and self._runtime.privacy_entered_at is None:
-            # Just entered privacy hour
-            self._runtime.privacy_entered_at = now
-        elif result.reason != "privacy_hour":
-            # Left privacy hour
-            self._runtime.privacy_entered_at = None
+            # Track when privacy hour was entered
+            is_winter = now.month in (11, 12, 1, 2, 3)
+            privacy_hour = int(self._cfg(CONF_WINTER_PRIVACY_HOUR)) if is_winter else int(self._cfg(CONF_SUMMER_PRIVACY_HOUR))
+            if result.reason == "privacy_hour" and self._runtime.privacy_entered_at is None:
+                # Just entered privacy hour
+                self._runtime.privacy_entered_at = now
+            elif result.reason != "privacy_hour":
+                # Left privacy hour
+                self._runtime.privacy_entered_at = None
 
-        if not result.should_move:
+            if not result.should_move:
+                self._update_state_attributes()
+                return
+
+            step = max(1, int(self._cfg(CONF_MAX_STEP_PER_TICK)))
+            target = result.target_position
+            if target > current_position:
+                target = min(target, current_position + step)
+            else:
+                target = max(target, current_position - step)
+
+            # Apply Zigbee delay to avoid overwhelming network
+            zigbee_delay = float(self._cfg(CONF_ZIGBEE_DELAY_SECONDS))
+            if zigbee_delay > 0:
+                await asyncio.sleep(zigbee_delay)
+
+            await self.hass.services.async_call(
+                "cover",
+                "set_cover_position",
+                {
+                    "entity_id": cover_entity,
+                    "position": target,
+                },
+                blocking=False,
+            )
+            self._runtime.last_target = target
+            _LOGGER.debug(
+                "HA Blinds entry=%s reason=%s current=%s target=%s sun_at_window=%s lux=%s temp=%s",
+                self.entry.entry_id,
+                result.reason,
+                current_position,
+                target,
+                result.sun_at_window,
+                lux,
+                temperature,
+            )
             self._update_state_attributes()
-            return
-
-        step = max(1, int(self._cfg(CONF_MAX_STEP_PER_TICK)))
-        target = result.target_position
-        if target > current_position:
-            target = min(target, current_position + step)
-        else:
-            target = max(target, current_position - step)
-
-        # Apply Zigbee delay to avoid overwhelming network
-        zigbee_delay = float(self._cfg(CONF_ZIGBEE_DELAY_SECONDS))
-        if zigbee_delay > 0:
-            await asyncio.sleep(zigbee_delay)
-
-        await self.hass.services.async_call(
-            "cover",
-            "set_cover_position",
-            {
-                "entity_id": cover_entity,
-                "position": target,
-            },
-            blocking=False,
-        )
-        self._runtime.last_target = target
-        _LOGGER.debug(
-            "HA Blinds entry=%s reason=%s current=%s target=%s sun_at_window=%s lux=%s temp=%s",
-            self.entry.entry_id,
-            result.reason,
-            current_position,
-            target,
-            result.sun_at_window,
-            lux,
-            temperature,
-        )
-        self._update_state_attributes()
+        except Exception as err:
+            self._runtime.error_count += 1
+            _LOGGER.error("Error in _async_evaluate: %s (error #%d)", err, self._runtime.error_count)
+            if self._runtime.error_count <= 3:
+                # Only log full traceback for first few errors
+                _LOGGER.debug("Error traceback:", exc_info=True)
 
     def _update_state_attributes(self) -> None:
         """Update diagnostic attributes in state."""
@@ -292,8 +297,6 @@ class HaBlindsController:
             enable_privacy_hour=bool(self._cfg(CONF_ENABLE_PRIVACY_HOUR)),
             enable_sun_elevation_tracking=bool(self._cfg(CONF_ENABLE_SUN_ELEVATION_TRACKING)),
             enable_sunset_closing=bool(self._cfg(CONF_ENABLE_SUNSET_CLOSING)),
-            sunrise_entity=self._cfg(CONF_SUNRISE_ENTITY),
-            sunset_entity=self._cfg(CONF_SUNSET_ENTITY),
             sunrise_offset_minutes=int(self._cfg(CONF_SUNRISE_OFFSET_MINUTES)),
             sunset_offset_minutes=int(self._cfg(CONF_SUNSET_OFFSET_MINUTES)),
         )
@@ -307,13 +310,9 @@ class HaBlindsController:
         except ValueError:
             return None
 
-    def _get_time_attribute(self, entity_id: str | None, attribute: str) -> datetime | None:
-        """Get a datetime attribute from an entity, with fallback to sun.sun."""
-        if not entity_id:
-            # Use sun.sun as fallback
-            entity_id = "sun.sun"
-
-        state = self.hass.states.get(entity_id)
+    def _get_time_attribute(self, attribute: str) -> datetime | None:
+        """Get a datetime attribute from sun.sun entity."""
+        state = self.hass.states.get("sun.sun")
         if state is None:
             return None
 
@@ -338,8 +337,7 @@ class HaBlindsController:
 
     def _get_sunset_time(self, now: datetime) -> datetime | None:
         """Get sunset time with offset applied."""
-        sunset_entity = self._cfg(CONF_SUNSET_ENTITY)
-        sunset_time = self._get_time_attribute(sunset_entity, "next_sunset")
+        sunset_time = self._get_time_attribute("next_sunset")
 
         if sunset_time is None:
             return None
@@ -352,8 +350,7 @@ class HaBlindsController:
 
     def _get_sunrise_time(self, now: datetime) -> datetime | None:
         """Get sunrise time with offset applied."""
-        sunrise_entity = self._cfg(CONF_SUNRISE_ENTITY)
-        sunrise_time = self._get_time_attribute(sunrise_entity, "next_rising")
+        sunrise_time = self._get_time_attribute("next_rising")
 
         if sunrise_time is None:
             return None

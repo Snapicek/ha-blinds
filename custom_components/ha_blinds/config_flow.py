@@ -30,9 +30,7 @@ from .const import (
     CONF_NIGHT_CLOSE_POSITION,
     CONF_PRIVACY_DURATION_MINUTES,
     CONF_SUMMER_PRIVACY_HOUR,
-    CONF_SUNRISE_ENTITY,
     CONF_SUNRISE_OFFSET_MINUTES,
-    CONF_SUNSET_ENTITY,
     CONF_SUNSET_OFFSET_MINUTES,
     CONF_TEMP_SENSOR,
     CONF_TEMP_THRESHOLD,
@@ -116,15 +114,9 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
             vol.Required(CONF_NIGHT_CLOSE_POSITION, default=int(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION]))): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
             vol.Required(CONF_ZIGBEE_DELAY_SECONDS, default=int(defaults.get(CONF_ZIGBEE_DELAY_SECONDS, DEFAULTS[CONF_ZIGBEE_DELAY_SECONDS]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
-            # Sunset/Sunrise feature
+            # Sunset/Sunrise feature - uses sun.sun entity
             vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=bool(defaults.get(CONF_ENABLE_SUNSET_CLOSING, DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]))): bool,
-            vol.Optional(CONF_SUNSET_ENTITY, description={"suggested_value": defaults.get(CONF_SUNSET_ENTITY, "")}): sel.EntitySelector(
-                sel.EntitySelectorConfig()
-            ),
             vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNSET_OFFSET_MINUTES, DEFAULTS[CONF_SUNSET_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
-            vol.Optional(CONF_SUNRISE_ENTITY, description={"suggested_value": defaults.get(CONF_SUNRISE_ENTITY, "")}): sel.EntitySelector(
-                sel.EntitySelectorConfig()
-            ),
             vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNRISE_OFFSET_MINUTES, DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
             # Feature toggles
             vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=bool(defaults.get(CONF_ENABLE_PRIVACY_HOUR, DEFAULTS[CONF_ENABLE_PRIVACY_HOUR]))): bool,

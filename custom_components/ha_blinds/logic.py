@@ -33,10 +33,8 @@ class DecisionConfig:
     enable_low_lux_reopen: bool = True
     enable_privacy_hour: bool = True
     enable_sun_elevation_tracking: bool = True
-    # Sunset/Sunrise feature
+    # Sunset/Sunrise feature - uses sun.sun entity
     enable_sunset_closing: bool = False
-    sunrise_entity: str | None = None
-    sunset_entity: str | None = None
     sunrise_offset_minutes: int = 0
     sunset_offset_minutes: int = 0
 
