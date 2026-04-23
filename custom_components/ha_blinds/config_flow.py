@@ -16,6 +16,7 @@ from .const import (
     CONF_ENABLE_LOW_LUX_REOPEN,
     CONF_ENABLE_PRIVACY_HOUR,
     CONF_ENABLE_SUN_ELEVATION_TRACKING,
+    CONF_ENABLE_SUNSET_CLOSING,
     CONF_HEAT_END_HOUR,
     CONF_HEAT_POSITION,
     CONF_HEAT_START_HOUR,
@@ -28,6 +29,10 @@ from .const import (
     CONF_MAX_STEP_PER_TICK,
     CONF_NIGHT_CLOSE_POSITION,
     CONF_SUMMER_PRIVACY_HOUR,
+    CONF_SUNRISE_ENTITY,
+    CONF_SUNRISE_OFFSET_MINUTES,
+    CONF_SUNSET_ENTITY,
+    CONF_SUNSET_OFFSET_MINUTES,
     CONF_TEMP_SENSOR,
     CONF_TEMP_THRESHOLD,
     CONF_TICK_MINUTES,
@@ -200,18 +205,19 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
 
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
-        """Show main options menu."""
-        return self.async_show_menu(
-            step_id="init",
-            menu_options={
-                "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
-                "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
-                "entities": "🔧 Reconfigure Entities (Cover, Sensor)",
-            },
-            description_placeholders={
-                "info": "Choose what to configure",
-            },
-        )
+         """Show main options menu."""
+         return self.async_show_menu(
+             step_id="init",
+             menu_options={
+                 "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
+                 "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
+                 "sunset": "🌅 Sunset/Sunrise Settings",
+                 "entities": "🔧 Reconfigure Entities (Cover, Sensor)",
+             },
+             description_placeholders={
+                 "info": "Choose what to configure",
+             },
+         )
 
 
     async def async_step_thresholds(self, user_input: dict[str, Any] | None = None):
@@ -268,6 +274,35 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema(schema_dict),
             description_placeholders={
                 "help": "Adjust check frequency, movement speed, and response timing",
+            },
+        )
+
+
+    async def async_step_sunset(self, user_input: dict[str, Any] | None = None):
+        """Sunset/Sunrise configuration."""
+        if user_input is not None:
+            # Merge with existing options
+            options = dict(self.config_entry.options)
+            options.update(user_input)
+            return self.async_create_entry(title="", data=options)
+
+        defaults = {**DEFAULTS, **self.config_entry.options}
+        schema_dict = {
+            vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=bool(defaults.get(CONF_ENABLE_SUNSET_CLOSING, DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]))): bool,
+            vol.Optional(CONF_SUNSET_ENTITY, description={"suggested_value": defaults.get(CONF_SUNSET_ENTITY, "")}): sel.EntitySelector(
+                sel.EntitySelectorConfig(domain="sun")
+            ),
+            vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNSET_OFFSET_MINUTES, DEFAULTS[CONF_SUNSET_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+            vol.Optional(CONF_SUNRISE_ENTITY, description={"suggested_value": defaults.get(CONF_SUNRISE_ENTITY, "")}): sel.EntitySelector(
+                sel.EntitySelectorConfig(domain="sun")
+            ),
+            vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNRISE_OFFSET_MINUTES, DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+        }
+        return self.async_show_form(
+            step_id="sunset",
+            data_schema=vol.Schema(schema_dict),
+            description_placeholders={
+                "help": "Configure sunset/sunrise based blind closing with time offsets",
             },
         )
 

@@ -92,6 +92,7 @@
           "check_state": "📊 Check Current State & Evaluate",
           "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
           "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
+          "sunset": "🌅 Sunset/Sunrise Settings",
           "features": "⚙️ Enable/Disable Features",
           "entities": "🔧 Reconfigure Entities (Cover, Sensor)"
         }
@@ -128,22 +129,40 @@
           "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19."
         }
       },
-      "timing": {
-        "title": "Timing Settings",
-        "description": "Adjust check frequency, movement speed, and response timing.",
-        "data": {
-          "tick_minutes": "Tick (minutes)",
-          "max_step_per_tick": "Max step per tick (%)",
-          "debounce_minutes": "Debounce (minutes)",
-          "manual_override_minutes": "Manual override (minutes)"
-        },
-        "data_description": {
-          "tick_minutes": "Frequency of checking/updating blind position in minutes. Recommended: 5.",
-          "max_step_per_tick": "Max position change per tick to make movement smoother. Recommended: 10.",
-          "debounce_minutes": "Minutes to wait before reacting to lux changes to prevent flapping. Recommended: 5-10.",
-          "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
-        }
-      },
+       "timing": {
+         "title": "Timing Settings",
+         "description": "Adjust check frequency, movement speed, and response timing.",
+         "data": {
+           "tick_minutes": "Tick (minutes)",
+           "max_step_per_tick": "Max step per tick (%)",
+           "debounce_minutes": "Debounce (minutes)",
+           "manual_override_minutes": "Manual override (minutes)"
+         },
+         "data_description": {
+           "tick_minutes": "Frequency of checking/updating blind position in minutes. Recommended: 5.",
+           "max_step_per_tick": "Max position change per tick to make movement smoother. Recommended: 10.",
+           "debounce_minutes": "Minutes to wait before reacting to lux changes to prevent flapping. Recommended: 5-10.",
+           "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
+         }
+       },
+       "sunset": {
+         "title": "Sunset/Sunrise Settings",
+         "description": "Configure sunset-based blind closing with adjustable time offsets. Negative offsets = earlier, positive = later.",
+         "data": {
+           "enable_sunset_closing": "Enable Sunset Closing",
+           "sunset_entity": "Sunset Entity (optional, defaults to sun.sun)",
+           "sunset_offset_minutes": "Sunset Offset (minutes)",
+           "sunrise_entity": "Sunrise Entity (optional, defaults to sun.sun)",
+           "sunrise_offset_minutes": "Sunrise Offset (minutes)"
+         },
+         "data_description": {
+           "enable_sunset_closing": "Enable automatic blind closing at sunset instead of relying only on sun elevation tracking.",
+           "sunset_entity": "Entity providing sunset time (typically sun.sun). If empty, defaults to sun.sun.",
+           "sunset_offset_minutes": "Adjust sunset time in minutes. E.g., -15 closes 15 min before sunset, +10 closes 10 min after. Recommended: -15 to 0.",
+           "sunrise_entity": "Entity providing sunrise time (typically sun.sun). If empty, defaults to sun.sun.",
+           "sunrise_offset_minutes": "Adjust sunrise time in minutes. E.g., +30 opens 30 min after sunrise. Recommended: 0 to 30."
+         }
+       },
       "features": {
         "title": "Feature Toggles",
         "description": "Enable or disable specific automation rules.",

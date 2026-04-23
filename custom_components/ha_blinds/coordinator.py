@@ -25,6 +25,7 @@ from .const import (
     CONF_ENABLE_LOW_LUX_REOPEN,
     CONF_ENABLE_PRIVACY_HOUR,
     CONF_ENABLE_SUN_ELEVATION_TRACKING,
+    CONF_ENABLE_SUNSET_CLOSING,
     CONF_HEAT_END_HOUR,
     CONF_HEAT_POSITION,
     CONF_HEAT_START_HOUR,
@@ -37,6 +38,10 @@ from .const import (
     CONF_MAX_STEP_PER_TICK,
     CONF_NIGHT_CLOSE_POSITION,
     CONF_SUMMER_PRIVACY_HOUR,
+    CONF_SUNRISE_ENTITY,
+    CONF_SUNRISE_OFFSET_MINUTES,
+    CONF_SUNSET_ENTITY,
+    CONF_SUNSET_OFFSET_MINUTES,
     CONF_TEMP_SENSOR,
     CONF_TEMP_THRESHOLD,
     CONF_TICK_MINUTES,
@@ -154,6 +159,10 @@ class HaBlindsController:
         temp_entity = self._cfg(CONF_TEMP_SENSOR)
         temperature = self._float_state(str(temp_entity)) if temp_entity else None
 
+        # Get sunrise and sunset times with offsets
+        sunrise_time = self._get_sunrise_time(now)
+        sunset_time = self._get_sunset_time(now)
+
         paused = bool(self._runtime.paused_until and now < self._runtime.paused_until)
         if self._runtime.paused_until and now >= self._runtime.paused_until:
             self._runtime.paused_until = None
@@ -166,6 +175,8 @@ class HaBlindsController:
             temperature=temperature,
             current_position=current_position,
             paused=paused,
+            sunrise_time=sunrise_time,
+            sunset_time=sunset_time,
         )
         result = self._engine.evaluate(inputs)
         self._runtime.last_reason = result.reason
@@ -259,6 +270,11 @@ class HaBlindsController:
             enable_low_lux_reopen=bool(self._cfg(CONF_ENABLE_LOW_LUX_REOPEN)),
             enable_privacy_hour=bool(self._cfg(CONF_ENABLE_PRIVACY_HOUR)),
             enable_sun_elevation_tracking=bool(self._cfg(CONF_ENABLE_SUN_ELEVATION_TRACKING)),
+            enable_sunset_closing=bool(self._cfg(CONF_ENABLE_SUNSET_CLOSING)),
+            sunrise_entity=self._cfg(CONF_SUNRISE_ENTITY),
+            sunset_entity=self._cfg(CONF_SUNSET_ENTITY),
+            sunrise_offset_minutes=int(self._cfg(CONF_SUNRISE_OFFSET_MINUTES)),
+            sunset_offset_minutes=int(self._cfg(CONF_SUNSET_OFFSET_MINUTES)),
         )
 
     def _float_state(self, entity_id: str) -> float | None:
@@ -269,6 +285,63 @@ class HaBlindsController:
             return float(state.state)
         except ValueError:
             return None
+
+    def _get_time_attribute(self, entity_id: str | None, attribute: str) -> datetime | None:
+        """Get a datetime attribute from an entity, with fallback to sun.sun."""
+        if not entity_id:
+            # Use sun.sun as fallback
+            entity_id = "sun.sun"
+
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return None
+
+        time_str = state.attributes.get(attribute)
+        if not time_str:
+            return None
+
+        try:
+            # Parse ISO format datetime string
+            if isinstance(time_str, str):
+                # Handle both ISO format with and without timezone
+                if time_str.endswith('+00:00'):
+                    return datetime.fromisoformat(time_str)
+                elif 'T' in time_str:
+                    return datetime.fromisoformat(time_str)
+            elif isinstance(time_str, datetime):
+                return time_str
+        except (ValueError, AttributeError):
+            pass
+
+        return None
+
+    def _get_sunset_time(self, now: datetime) -> datetime | None:
+        """Get sunset time with offset applied."""
+        sunset_entity = self._cfg(CONF_SUNSET_ENTITY)
+        sunset_time = self._get_time_attribute(sunset_entity, "next_sunset")
+
+        if sunset_time is None:
+            return None
+
+        offset_minutes = int(self._cfg(CONF_SUNSET_OFFSET_MINUTES))
+        if offset_minutes != 0:
+            sunset_time = sunset_time + timedelta(minutes=offset_minutes)
+
+        return sunset_time
+
+    def _get_sunrise_time(self, now: datetime) -> datetime | None:
+        """Get sunrise time with offset applied."""
+        sunrise_entity = self._cfg(CONF_SUNRISE_ENTITY)
+        sunrise_time = self._get_time_attribute(sunrise_entity, "next_rising")
+
+        if sunrise_time is None:
+            return None
+
+        offset_minutes = int(self._cfg(CONF_SUNRISE_OFFSET_MINUTES))
+        if offset_minutes != 0:
+            sunrise_time = sunrise_time + timedelta(minutes=offset_minutes)
+
+        return sunrise_time
 
     @property
     def device_id(self) -> str | None:
