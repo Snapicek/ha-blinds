@@ -51,6 +51,8 @@ class DecisionInputs:
     sunrise_time: datetime | None = None
     sunset_time: datetime | None = None
     privacy_entered_at: datetime | None = None  # When privacy hour was first triggered
+    high_lux_since: datetime | None = None  # When high lux was first detected
+    low_lux_since: datetime | None = None   # When low lux was first detected
 
 
 @dataclass
@@ -107,11 +109,15 @@ class DecisionEngine:
 
         close_threshold = self.config.lux_close_winter if is_winter else self.config.lux_close_summer
         open_threshold = self.config.lux_open_winter if is_winter else self.config.lux_open_summer
-        self._update_debounce(inputs.now, inputs.lux, close_threshold, open_threshold)
+
+        # Only update debounce if features that use it are enabled
+        if self.config.enable_high_lux_protection or self.config.enable_low_lux_reopen:
+            self._update_debounce(inputs.now, inputs.lux, close_threshold, open_threshold, inputs.high_lux_since, inputs.low_lux_since)
 
         # High lux protection (if enabled)
-        if self.config.enable_high_lux_protection and sun_at_window and self._debounced(self.state.high_lux_since, inputs.now):
-            return self._result(inputs.current_position, 0, "direct_sun_high_lux", sun_at_window)
+        if self.config.enable_high_lux_protection and sun_at_window and inputs.high_lux_since is not None:
+            if self._debounced(inputs.high_lux_since, inputs.now):
+                return self._result(inputs.current_position, 0, "direct_sun_high_lux", sun_at_window)
 
         # Heat protection (if enabled)
         if (
@@ -128,8 +134,9 @@ class DecisionEngine:
             )
 
         # Low lux reopen (if enabled)
-        if self.config.enable_low_lux_reopen and sun_at_window and self._debounced(self.state.low_lux_since, inputs.now):
-            return self._result(inputs.current_position, 75, "low_lux_reopen", sun_at_window)
+        if self.config.enable_low_lux_reopen and sun_at_window and inputs.low_lux_since is not None:
+            if self._debounced(inputs.low_lux_since, inputs.now):
+                return self._result(inputs.current_position, 75, "low_lux_reopen", sun_at_window)
 
         # Sun elevation tracking (if enabled)
         if self.config.enable_sun_elevation_tracking:
@@ -160,21 +167,12 @@ class DecisionEngine:
         lux: float | None,
         close_threshold: float,
         open_threshold: float,
+        high_lux_since: datetime | None,
+        low_lux_since: datetime | None,
     ) -> None:
-        if lux is None:
-            self.state.high_lux_since = None
-            self.state.low_lux_since = None
-            return
-
-        if lux >= close_threshold:
-            self.state.high_lux_since = self.state.high_lux_since or now
-        else:
-            self.state.high_lux_since = None
-
-        if lux <= open_threshold:
-            self.state.low_lux_since = self.state.low_lux_since or now
-        else:
-            self.state.low_lux_since = None
+        # This method is now only for calculating new lux thresholds
+        # Actual state tracking is handled in coordinator
+        pass
 
     def _debounced(self, since: datetime | None, now: datetime) -> bool:
         if since is None:

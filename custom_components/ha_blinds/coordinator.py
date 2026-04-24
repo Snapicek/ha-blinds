@@ -62,6 +62,8 @@ _LOGGER = logging.getLogger(__name__)
 class _RuntimeState:
     paused_until: datetime | None = None
     privacy_entered_at: datetime | None = None  # Track when privacy hour was first triggered
+    high_lux_since: datetime | None = None  # Track when high lux was first detected
+    low_lux_since: datetime | None = None   # Track when low lux was first detected
     last_reason: str = "startup"
     last_target: int | None = None
     last_decision_time: datetime | None = None
@@ -181,6 +183,8 @@ class HaBlindsController:
                 sunrise_time=sunrise_time,
                 sunset_time=sunset_time,
                 privacy_entered_at=self._runtime.privacy_entered_at,
+                high_lux_since=self._runtime.high_lux_since,
+                low_lux_since=self._runtime.low_lux_since,
             )
             result = self._engine.evaluate(inputs)
             self._runtime.last_reason = result.reason
@@ -190,6 +194,8 @@ class HaBlindsController:
             # Track when privacy hour was entered
             is_winter = now.month in (11, 12, 1, 2, 3)
             enable_privacy_hour = bool(self._cfg(CONF_ENABLE_PRIVACY_HOUR))
+            enable_high_lux = bool(self._cfg(CONF_ENABLE_HIGH_LUX_PROTECTION))
+            enable_low_lux = bool(self._cfg(CONF_ENABLE_LOW_LUX_REOPEN))
 
             # If privacy hour is disabled, clear the tracking
             if not enable_privacy_hour:
@@ -203,6 +209,31 @@ class HaBlindsController:
                 if now.hour < privacy_hour:
                     # Reset only if we're before privacy hour time
                     self._runtime.privacy_entered_at = None
+
+            # If high/low lux features are disabled, clear their tracking
+            if not enable_high_lux:
+                self._runtime.high_lux_since = None
+            if not enable_low_lux:
+                self._runtime.low_lux_since = None
+
+            # Update lux tracking based on thresholds
+            is_winter = now.month in (11, 12, 1, 2, 3)
+            close_threshold = float(self._cfg(CONF_LUX_CLOSE_WINTER if is_winter else CONF_LUX_CLOSE_SUMMER))
+            open_threshold = float(self._cfg(CONF_LUX_OPEN_WINTER if is_winter else CONF_LUX_OPEN_SUMMER))
+
+            if lux is not None and (enable_high_lux or enable_low_lux):
+                if lux >= close_threshold and enable_high_lux:
+                    self._runtime.high_lux_since = self._runtime.high_lux_since or now
+                else:
+                    self._runtime.high_lux_since = None
+
+                if lux <= open_threshold and enable_low_lux:
+                    self._runtime.low_lux_since = self._runtime.low_lux_since or now
+                else:
+                    self._runtime.low_lux_since = None
+            else:
+                self._runtime.high_lux_since = None
+                self._runtime.low_lux_since = None
 
             if not result.should_move:
                 self._update_state_attributes()
