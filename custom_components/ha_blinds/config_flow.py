@@ -286,33 +286,27 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
         )
 
 
-    async def async_step_sunset(self, user_input: dict[str, Any] | None = None):
-        """Sunset/Sunrise configuration."""
-        if user_input is not None:
-            # Merge with existing options
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
+     async def async_step_sunset(self, user_input: dict[str, Any] | None = None):
+         """Sunset/Sunrise configuration - uses built-in sun.sun entity."""
+         if user_input is not None:
+             # Merge with existing options
+             options = dict(self.config_entry.options)
+             options.update(user_input)
+             return self.async_create_entry(title="", data=options)
 
-        defaults = {**DEFAULTS, **self.config_entry.options}
-        schema_dict = {
-            vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=bool(defaults.get(CONF_ENABLE_SUNSET_CLOSING, DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]))): bool,
-            vol.Optional(CONF_SUNSET_ENTITY, description={"suggested_value": defaults.get(CONF_SUNSET_ENTITY, "")}): sel.EntitySelector(
-                sel.EntitySelectorConfig()
-            ),
-            vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNSET_OFFSET_MINUTES, DEFAULTS[CONF_SUNSET_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
-            vol.Optional(CONF_SUNRISE_ENTITY, description={"suggested_value": defaults.get(CONF_SUNRISE_ENTITY, "")}): sel.EntitySelector(
-                sel.EntitySelectorConfig()
-            ),
-            vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNRISE_OFFSET_MINUTES, DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
-        }
-        return self.async_show_form(
-            step_id="sunset",
-            data_schema=vol.Schema(schema_dict),
-            description_placeholders={
-                "help": "Configure sunset/sunrise based blind closing with time offsets",
-            },
-        )
+         defaults = {**DEFAULTS, **self.config_entry.options}
+         schema_dict = {
+             vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=bool(defaults.get(CONF_ENABLE_SUNSET_CLOSING, DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]))): bool,
+             vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNSET_OFFSET_MINUTES, DEFAULTS[CONF_SUNSET_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+             vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNRISE_OFFSET_MINUTES, DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+         }
+         return self.async_show_form(
+             step_id="sunset",
+             data_schema=vol.Schema(schema_dict),
+             description_placeholders={
+                 "help": "Configure sunset/sunrise offsets. Uses the built-in sun.sun entity (automatically detected).",
+             },
+         )
 
     async def async_step_features(self, user_input: dict[str, Any] | None = None):
         """Feature toggles configuration."""
