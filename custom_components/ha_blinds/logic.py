@@ -87,16 +87,18 @@ class DecisionEngine:
                 return self._result(inputs.current_position, self.config.night_close_position, "sunset_closing", sun_at_window)
 
         # Privacy hour (if enabled)
-        if self.config.enable_privacy_hour:
-            privacy_hour = self.config.winter_privacy_hour if is_winter else self.config.summer_privacy_hour
+        if self.config.enable_privacy_hour and inputs.privacy_entered_at is not None:
             privacy_duration = timedelta(minutes=self.config.privacy_duration_minutes)
-            privacy_end_time = inputs.privacy_entered_at + privacy_duration if inputs.privacy_entered_at else None
+            privacy_end_time = inputs.privacy_entered_at + privacy_duration
 
-            # Check if we're in privacy hour window or still within privacy duration
-            in_privacy_hour = inputs.now.hour >= privacy_hour
-            still_in_duration = privacy_end_time and inputs.now < privacy_end_time
+            # Only apply privacy duration if we're still within it
+            if inputs.now < privacy_end_time:
+                return self._result(inputs.current_position, self.config.night_close_position, "privacy_hour", sun_at_window)
 
-            if in_privacy_hour or still_in_duration:
+        # Check privacy hour time window (separate from duration tracking)
+        if self.config.enable_privacy_hour and inputs.privacy_entered_at is None:
+            privacy_hour = self.config.winter_privacy_hour if is_winter else self.config.summer_privacy_hour
+            if inputs.now.hour >= privacy_hour:
                 return self._result(inputs.current_position, self.config.night_close_position, "privacy_hour", sun_at_window)
 
         # Night close (always active - safety feature)

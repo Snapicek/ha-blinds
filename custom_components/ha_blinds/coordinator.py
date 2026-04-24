@@ -189,13 +189,20 @@ class HaBlindsController:
 
             # Track when privacy hour was entered
             is_winter = now.month in (11, 12, 1, 2, 3)
-            privacy_hour = int(self._cfg(CONF_WINTER_PRIVACY_HOUR)) if is_winter else int(self._cfg(CONF_SUMMER_PRIVACY_HOUR))
-            if result.reason == "privacy_hour" and self._runtime.privacy_entered_at is None:
+            enable_privacy_hour = bool(self._cfg(CONF_ENABLE_PRIVACY_HOUR))
+
+            # If privacy hour is disabled, clear the tracking
+            if not enable_privacy_hour:
+                self._runtime.privacy_entered_at = None
+            elif result.reason == "privacy_hour" and self._runtime.privacy_entered_at is None:
                 # Just entered privacy hour
                 self._runtime.privacy_entered_at = now
-            elif result.reason != "privacy_hour":
-                # Left privacy hour
-                self._runtime.privacy_entered_at = None
+            elif result.reason != "privacy_hour" and self._runtime.privacy_entered_at is not None:
+                # Left privacy hour (time-based, not duration-based)
+                privacy_hour = int(self._cfg(CONF_WINTER_PRIVACY_HOUR)) if is_winter else int(self._cfg(CONF_SUMMER_PRIVACY_HOUR))
+                if now.hour < privacy_hour:
+                    # Reset only if we're before privacy hour time
+                    self._runtime.privacy_entered_at = None
 
             if not result.should_move:
                 self._update_state_attributes()
