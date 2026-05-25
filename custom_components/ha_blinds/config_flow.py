@@ -47,21 +47,48 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-_OPTIONS_FLOW_BASE = getattr(config_entries, "OptionsFlowWithConfigEntry", config_entries.OptionsFlow)
 
 
 def _convert_time_inputs(user_input: dict[str, Any]) -> None:
     """Convert HH:MM time strings to integer hours in-place."""
     for time_key in [CONF_HEAT_START_HOUR, CONF_HEAT_END_HOUR, CONF_WINTER_PRIVACY_HOUR, CONF_SUMMER_PRIVACY_HOUR]:
-        if time_key in user_input and isinstance(user_input[time_key], str):
-            user_input[time_key] = int(user_input[time_key].split(":")[0])
+        if time_key in user_input:
+            user_input[time_key] = _coerce_hour_value(user_input[time_key])
+
+
+def _coerce_hour_value(value: Any) -> int:
+    """Coerce hour selector output to an integer hour (0-23)."""
+    if isinstance(value, int):
+        hour = value
+    elif isinstance(value, str):
+        hour_str = value.split(":", 1)[0].strip()
+        hour = int(hour_str)
+    else:
+        raise ValueError("Hour value must be int or HH:MM string")
+
+    if hour < 0 or hour > 23:
+        raise ValueError("Hour must be between 0 and 23")
+    return hour
 
 
 def _convert_night_close_position(user_input: dict[str, Any]) -> None:
     """Convert night close position string to integer in-place."""
-    if CONF_NIGHT_CLOSE_POSITION in user_input and isinstance(user_input[CONF_NIGHT_CLOSE_POSITION], str):
-        # Extract the numeric value from "0 (Closed)" or "100 (Privacy Mode)"
-        user_input[CONF_NIGHT_CLOSE_POSITION] = int(user_input[CONF_NIGHT_CLOSE_POSITION].split()[0])
+    if CONF_NIGHT_CLOSE_POSITION in user_input:
+        user_input[CONF_NIGHT_CLOSE_POSITION] = _coerce_night_close_position(user_input[CONF_NIGHT_CLOSE_POSITION])
+
+
+def _coerce_night_close_position(value: Any) -> int:
+    """Coerce night close selector output to supported integer values."""
+    if isinstance(value, int):
+        position = value
+    elif isinstance(value, str):
+        position = int(value.split()[0])
+    else:
+        raise ValueError("Night close position must be int or selector string")
+
+    if position not in (0, 100):
+        raise ValueError("Night close position must be 0 or 100")
+    return position
 
 
 def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -218,29 +245,29 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        if hasattr(config_entries, "OptionsFlowWithConfigEntry"):
-            return HaBlindsOptionsFlow()
-        return HaBlindsOptionsFlow(config_entry)
+        return HaBlindsOptionsFlow()
 
 
-class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
+class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
     """Options flow for HA Blinds."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry | None = None) -> None:
-        """Keep backward compatibility where config_entry is passed explicitly."""
-        if config_entry is not None:
-            self.config_entry = config_entry
 
     def _entry(self) -> config_entries.ConfigEntry:
         """Return active config entry for this options flow."""
-        entry = getattr(self, "config_entry", None)
+        try:
+            entry = self.config_entry
+        except AttributeError as err:
+            raise vol.Invalid("Config entry unavailable for options flow") from err
         if entry is None:
             raise vol.Invalid("Config entry unavailable for options flow")
         return entry
 
     def _defaults(self) -> dict[str, Any]:
         """Return merged defaults with persisted values taking precedence."""
-        entry = self._entry()
+        try:
+            entry = self._entry()
+        except vol.Invalid:
+            _LOGGER.exception("Unable to resolve config entry; falling back to hard defaults")
+            return dict(DEFAULTS)
         return {**DEFAULTS, **entry.data, **entry.options}
 
     def _normalized_options(self, user_input: dict[str, Any]) -> dict[str, Any]:
@@ -282,8 +309,13 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
 
     async def async_step_thresholds(self, user_input: dict[str, Any] | None = None):
         """Threshold configuration."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self._save_options_entry(user_input)
+            try:
+                return self._save_options_entry(user_input)
+            except vol.Invalid:
+                _LOGGER.exception("Invalid threshold options payload")
+                errors["base"] = "unknown"
 
         defaults = self._defaults()
         schema_dict = {
@@ -302,6 +334,7 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
         return self.async_show_form(
             step_id="thresholds",
             data_schema=vol.Schema(schema_dict),
+            errors=errors,
             description_placeholders={
                 "help": "Adjust lux thresholds, heat protection, and privacy hours",
             },
@@ -309,8 +342,13 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
 
     async def async_step_timing(self, user_input: dict[str, Any] | None = None):
         """Timing configuration."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self._save_options_entry(user_input)
+            try:
+                return self._save_options_entry(user_input)
+            except vol.Invalid:
+                _LOGGER.exception("Invalid timing options payload")
+                errors["base"] = "unknown"
 
         defaults = self._defaults()
         schema_dict = {
@@ -322,6 +360,7 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
         return self.async_show_form(
             step_id="timing",
             data_schema=vol.Schema(schema_dict),
+            errors=errors,
             description_placeholders={
                 "help": "Adjust check frequency, movement speed, and response timing",
             },
@@ -329,8 +368,13 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
 
     async def async_step_sunset(self, user_input: dict[str, Any] | None = None):
         """Sunset/Sunrise configuration - uses built-in sun.sun entity."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self._save_options_entry(user_input)
+            try:
+                return self._save_options_entry(user_input)
+            except vol.Invalid:
+                _LOGGER.exception("Invalid sunset options payload")
+                errors["base"] = "unknown"
 
         defaults = self._defaults()
         schema_dict = {
@@ -341,6 +385,7 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
         return self.async_show_form(
             step_id="sunset",
             data_schema=vol.Schema(schema_dict),
+            errors=errors,
             description_placeholders={
                 "help": "Configure sunset/sunrise offsets. Uses the built-in sun.sun entity (automatically detected).",
             },
@@ -348,8 +393,13 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
 
     async def async_step_features(self, user_input: dict[str, Any] | None = None):
         """Feature toggles configuration."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self._save_options_entry(user_input)
+            try:
+                return self._save_options_entry(user_input)
+            except vol.Invalid:
+                _LOGGER.exception("Invalid feature toggle payload")
+                errors["base"] = "unknown"
 
         defaults = self._defaults()
         schema_dict = {
@@ -362,6 +412,7 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
         return self.async_show_form(
             step_id="features",
             data_schema=vol.Schema(schema_dict),
+            errors=errors,
             description_placeholders={
                 "help": "Enable or disable specific automation rules",
             },
@@ -370,26 +421,31 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
 
     async def async_step_entities(self, user_input: dict[str, Any] | None = None):
         """Reconfigure entities (cover, lux sensor)."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            cleaned = self._normalized_options(user_input)
-            entry = self._entry()
-            new_data = dict(entry.data)
-            new_data.update(
-                {
-                    CONF_COVER_ENTITY: cleaned[CONF_COVER_ENTITY],
-                    CONF_LUX_SENSOR: cleaned[CONF_LUX_SENSOR],
-                    CONF_WINDOW_AZIMUTH: cleaned[CONF_WINDOW_AZIMUTH],
-                    CONF_WINDOW_VIEW_LEFT: cleaned[CONF_WINDOW_VIEW_LEFT],
-                    CONF_WINDOW_VIEW_RIGHT: cleaned[CONF_WINDOW_VIEW_RIGHT],
-                }
-            )
-            if CONF_TEMP_SENSOR in cleaned:
-                new_data[CONF_TEMP_SENSOR] = cleaned[CONF_TEMP_SENSOR]
-            else:
-                new_data.pop(CONF_TEMP_SENSOR, None)
+            try:
+                cleaned = self._normalized_options(user_input)
+                entry = self._entry()
+                new_data = dict(entry.data)
+                new_data.update(
+                    {
+                        CONF_COVER_ENTITY: cleaned[CONF_COVER_ENTITY],
+                        CONF_LUX_SENSOR: cleaned[CONF_LUX_SENSOR],
+                        CONF_WINDOW_AZIMUTH: cleaned[CONF_WINDOW_AZIMUTH],
+                        CONF_WINDOW_VIEW_LEFT: cleaned[CONF_WINDOW_VIEW_LEFT],
+                        CONF_WINDOW_VIEW_RIGHT: cleaned[CONF_WINDOW_VIEW_RIGHT],
+                    }
+                )
+                if CONF_TEMP_SENSOR in cleaned:
+                    new_data[CONF_TEMP_SENSOR] = cleaned[CONF_TEMP_SENSOR]
+                else:
+                    new_data.pop(CONF_TEMP_SENSOR, None)
 
-            self.hass.config_entries.async_update_entry(entry, data=new_data)
-            return self.async_create_entry(title="", data=dict(entry.options))
+                self.hass.config_entries.async_update_entry(entry, data=new_data)
+                return self.async_create_entry(title="", data=dict(entry.options))
+            except (KeyError, vol.Invalid):
+                _LOGGER.exception("Invalid entities reconfigure payload")
+                errors["base"] = "unknown"
 
         defaults = self._defaults()
         schema_dict = {
@@ -418,6 +474,7 @@ class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
         return self.async_show_form(
             step_id="entities",
             data_schema=vol.Schema(schema_dict),
+            errors=errors,
             description_placeholders={
                 "help": "Change cover/sensor entities or window orientation. Integration will reload.",
             },
