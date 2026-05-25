@@ -82,13 +82,13 @@
     "step": {
       "init": {
         "title": "HA Blinds Options",
-        "description": "Adjust thresholds and timing without re-adding integration.",
+        "description": "Adjust thresholds and timing without re-adding integration. For entity changes, use Reconfigure from the integration menu.",
         "menu_options": {
           "check_state": "📊 Check Current State & Evaluate",
           "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
           "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
-          "features": "⚙️ Enable/Disable Features",
-          "entities": "🔧 Reconfigure Entities (Cover, Sensor)"
+          "sunset": "🌅 Sunset/Sunrise Settings",
+          "features": "⚙️ Enable/Disable Features"
         }
       },
       "check_state": {
@@ -155,26 +155,6 @@
           "enable_heat_protection": "Close blinds during heat protection hours if temperature is high.",
           "enable_low_lux_reopen": "Open blinds when light is low.",
           "enable_sun_elevation_tracking": "Base automation: adjust blinds based on sun elevation."
-        }
-      },
-      "entities": {
-        "title": "Entity Configuration",
-        "description": "Change cover/sensor entities or window orientation.",
-        "data": {
-          "cover_entity": "Blinds cover entity",
-          "lux_sensor": "Lux sensor",
-          "temp_sensor": "Temperature sensor (optional)",
-          "window_azimuth": "Window azimuth (0-359)",
-          "window_view_left": "Window view left angle",
-          "window_view_right": "Window view right angle"
-        },
-        "data_description": {
-          "cover_entity": "Your blind/shutter entity",
-          "lux_sensor": "Light level sensor",
-          "temp_sensor": "Optional temperature sensor for heat protection",
-          "window_azimuth": "Direction window faces (180=South, 270=West, 90=East)",
-          "window_view_left": "Angle of view to the left (0-180). 90=unobstructed.",
-          "window_view_right": "Angle of view to the right (0-180). 90=unobstructed."
         }
       }
     }

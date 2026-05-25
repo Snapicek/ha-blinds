@@ -245,11 +245,15 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        return HaBlindsOptionsFlow()
+        return HaBlindsOptionsFlow(config_entry)
 
 
-class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
+class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     """Options flow for HA Blinds."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow with the active config entry."""
+        self.config_entry = config_entry
 
     def _entry(self) -> config_entries.ConfigEntry:
         """Return active config entry for this options flow."""
@@ -294,15 +298,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
         """Show main options menu."""
         return self.async_show_menu(
             step_id="init",
-            menu_options={
-                "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
-                "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
-                "sunset": "🌅 Sunset/Sunrise Settings",
-                "features": "⚙️ Enable/Disable Features",
-                "entities": "🔧 Reconfigure Entities (Cover, Sensor)",
-            },
+            menu_options=["thresholds", "timing", "sunset", "features"],
             description_placeholders={
-                "info": "Choose what to configure",
+                "info": "Choose what to configure. Use Reconfigure from the integration menu for entity changes.",
             },
         )
 
@@ -419,63 +417,3 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
         )
 
 
-    async def async_step_entities(self, user_input: dict[str, Any] | None = None):
-        """Reconfigure entities (cover, lux sensor)."""
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            try:
-                cleaned = self._normalized_options(user_input)
-                entry = self._entry()
-                new_data = dict(entry.data)
-                new_data.update(
-                    {
-                        CONF_COVER_ENTITY: cleaned[CONF_COVER_ENTITY],
-                        CONF_LUX_SENSOR: cleaned[CONF_LUX_SENSOR],
-                        CONF_WINDOW_AZIMUTH: cleaned[CONF_WINDOW_AZIMUTH],
-                        CONF_WINDOW_VIEW_LEFT: cleaned[CONF_WINDOW_VIEW_LEFT],
-                        CONF_WINDOW_VIEW_RIGHT: cleaned[CONF_WINDOW_VIEW_RIGHT],
-                    }
-                )
-                if CONF_TEMP_SENSOR in cleaned:
-                    new_data[CONF_TEMP_SENSOR] = cleaned[CONF_TEMP_SENSOR]
-                else:
-                    new_data.pop(CONF_TEMP_SENSOR, None)
-
-                self.hass.config_entries.async_update_entry(entry, data=new_data)
-                return self.async_create_entry(title="", data=dict(entry.options))
-            except (KeyError, vol.Invalid):
-                _LOGGER.exception("Invalid entities reconfigure payload")
-                errors["base"] = "unknown"
-
-        defaults = self._defaults()
-        schema_dict = {
-            vol.Required(CONF_COVER_ENTITY, default=defaults.get(CONF_COVER_ENTITY)): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="cover")
-            ),
-            vol.Required(CONF_LUX_SENSOR, default=defaults.get(CONF_LUX_SENSOR)): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="sensor", device_class="illuminance")
-            ),
-            vol.Optional(CONF_TEMP_SENSOR, description={"suggested_value": defaults.get(CONF_TEMP_SENSOR, "")}): sel.EntitySelector(
-                sel.EntitySelectorConfig(domain="sensor", device_class="temperature")
-            ),
-            vol.Required(
-                CONF_WINDOW_AZIMUTH,
-                default=int(defaults.get(CONF_WINDOW_AZIMUTH, DEFAULTS[CONF_WINDOW_AZIMUTH])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=359)),
-            vol.Required(
-                CONF_WINDOW_VIEW_LEFT,
-                default=int(defaults.get(CONF_WINDOW_VIEW_LEFT, DEFAULTS[CONF_WINDOW_VIEW_LEFT])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
-            vol.Required(
-                CONF_WINDOW_VIEW_RIGHT,
-                default=int(defaults.get(CONF_WINDOW_VIEW_RIGHT, DEFAULTS[CONF_WINDOW_VIEW_RIGHT])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
-        }
-        return self.async_show_form(
-            step_id="entities",
-            data_schema=vol.Schema(schema_dict),
-            errors=errors,
-            description_placeholders={
-                "help": "Change cover/sensor entities or window orientation. Integration will reload.",
-            },
-        )
