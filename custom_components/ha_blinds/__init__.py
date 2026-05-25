@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from .coordinator import HaBlindsController
 
 _LOGGER = logging.getLogger(__name__)
+PLATFORMS = ["sensor", "switch", "button"]
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -97,14 +98,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = controller
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
-    # Setup sensor platforms
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
-
-    # Setup switch platforms
-    await hass.config_entries.async_forward_entry_setups(entry, ["switch"])
-
-    # Setup button platforms
-    await hass.config_entries.async_forward_entry_setups(entry, ["button"])
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     _LOGGER.info("HA Blinds entry %s setup complete", entry.entry_id)
     return True
@@ -114,11 +108,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     from .coordinator import HaBlindsController
 
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
     controller: HaBlindsController | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if controller:
         await controller.async_stop()
         _LOGGER.info("HA Blinds entry %s unloaded", entry.entry_id)
-    return True
+    return unload_ok
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

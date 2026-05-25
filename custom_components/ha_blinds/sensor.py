@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import CONF_COVER_ENTITY, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,6 +38,8 @@ async def async_setup_entry(
 
 class HaBlindsBaseSensor(SensorEntity):
     """Base sensor."""
+
+    _attr_has_entity_name = True
 
     def __init__(self, coordinator, entry: ConfigEntry):
         self.coordinator = coordinator
@@ -82,6 +84,19 @@ class HaBlindsStateSensor(HaBlindsBaseSensor):
     @property
     def icon(self) -> str:
         return "mdi:pause" if self.state == "paused" else "mdi:play"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | int | bool | None]:
+        runtime = self.coordinator._runtime
+        return {
+            "last_reason": runtime.last_reason,
+            "last_target": runtime.last_target,
+            "last_decision": runtime.last_decision_time.isoformat() if runtime.last_decision_time else None,
+            "paused_until": runtime.paused_until.isoformat() if runtime.paused_until else None,
+            "cover_entity": str(self.coordinator._cfg(CONF_COVER_ENTITY)),
+            "error_count": runtime.error_count,
+            "sun_at_window": runtime.sun_at_window,
+        }
 
 
 class HaBlindsLastReasonSensor(HaBlindsBaseSensor):

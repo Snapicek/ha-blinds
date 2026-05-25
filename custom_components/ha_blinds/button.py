@@ -34,6 +34,8 @@ async def async_setup_entry(
 class HaBlindsBaseButton(ButtonEntity):
     """Base button."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, coordinator, entry: ConfigEntry):
         self.coordinator = coordinator
         self.entry = entry

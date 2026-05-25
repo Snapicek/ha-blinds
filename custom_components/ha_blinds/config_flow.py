@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
 from homeassistant.helpers import selector as sel
 
 from .const import (
@@ -43,6 +45,9 @@ from .const import (
     DEFAULTS,
     DOMAIN,
 )
+
+_LOGGER = logging.getLogger(__name__)
+_OPTIONS_FLOW_BASE = getattr(config_entries, "OptionsFlowWithConfigEntry", config_entries.OptionsFlow)
 
 
 def _convert_time_inputs(user_input: dict[str, Any]) -> None:
@@ -112,7 +117,14 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=f"{int(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])):02d}:00"): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_PRIVACY_DURATION_MINUTES, default=int(defaults.get(CONF_PRIVACY_DURATION_MINUTES, DEFAULTS[CONF_PRIVACY_DURATION_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=60, max=1440)),
             vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
-            vol.Required(CONF_NIGHT_CLOSE_POSITION, default=int(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION]))): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
+            vol.Required(
+                CONF_NIGHT_CLOSE_POSITION,
+                default=(
+                    f"{int(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION]))} (Closed)"
+                    if int(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION])) == 0
+                    else "100 (Privacy Mode)"
+                ),
+            ): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
             vol.Required(CONF_ZIGBEE_DELAY_SECONDS, default=int(defaults.get(CONF_ZIGBEE_DELAY_SECONDS, DEFAULTS[CONF_ZIGBEE_DELAY_SECONDS]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
             # Sunset/Sunrise feature - uses sun.sun entity
             vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=bool(defaults.get(CONF_ENABLE_SUNSET_CLOSING, DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]))): bool,
@@ -204,12 +216,52 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     @staticmethod
+    @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        return HaBlindsOptionsFlow()
+        if hasattr(config_entries, "OptionsFlowWithConfigEntry"):
+            return HaBlindsOptionsFlow()
+        return HaBlindsOptionsFlow(config_entry)
 
 
-class HaBlindsOptionsFlow(config_entries.OptionsFlow):
+class HaBlindsOptionsFlow(_OPTIONS_FLOW_BASE):
     """Options flow for HA Blinds."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry | None = None) -> None:
+        """Keep backward compatibility where config_entry is passed explicitly."""
+        if config_entry is not None:
+            self.config_entry = config_entry
+
+    def _entry(self) -> config_entries.ConfigEntry:
+        """Return active config entry for this options flow."""
+        entry = getattr(self, "config_entry", None)
+        if entry is None:
+            raise vol.Invalid("Config entry unavailable for options flow")
+        return entry
+
+    def _defaults(self) -> dict[str, Any]:
+        """Return merged defaults with persisted values taking precedence."""
+        entry = self._entry()
+        return {**DEFAULTS, **entry.data, **entry.options}
+
+    def _normalized_options(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        """Normalize selector outputs and keep option types stable."""
+        cleaned = dict(user_input)
+        if not cleaned.get(CONF_TEMP_SENSOR):
+            cleaned.pop(CONF_TEMP_SENSOR, None)
+        try:
+            _convert_time_inputs(cleaned)
+            _convert_night_close_position(cleaned)
+        except (TypeError, ValueError) as err:
+            raise vol.Invalid("Invalid option value") from err
+        return cleaned
+
+    def _save_options_entry(self, user_input: dict[str, Any]):
+        """Merge and persist updated options."""
+        entry = self._entry()
+        options = dict(entry.options)
+        options.update(self._normalized_options(user_input))
+        _LOGGER.debug("Saving options for entry %s: keys=%s", entry.entry_id, sorted(options.keys()))
+        return self.async_create_entry(title="", data=options)
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Show main options menu."""
@@ -231,16 +283,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     async def async_step_thresholds(self, user_input: dict[str, Any] | None = None):
         """Threshold configuration."""
         if user_input is not None:
-            if not user_input.get(CONF_TEMP_SENSOR):
-                user_input.pop(CONF_TEMP_SENSOR, None)
-            _convert_time_inputs(user_input)
-            _convert_night_close_position(user_input)
-            # Merge with existing options
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
+            return self._save_options_entry(user_input)
 
-        defaults = {**DEFAULTS, **self.config_entry.options}
+        defaults = self._defaults()
         schema_dict = {
             vol.Required(CONF_LUX_CLOSE_SUMMER, default=int(defaults.get(CONF_LUX_CLOSE_SUMMER, DEFAULTS[CONF_LUX_CLOSE_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=1000, max=120000)),
             vol.Required(CONF_LUX_OPEN_SUMMER, default=int(defaults.get(CONF_LUX_OPEN_SUMMER, DEFAULTS[CONF_LUX_OPEN_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
@@ -265,12 +310,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     async def async_step_timing(self, user_input: dict[str, Any] | None = None):
         """Timing configuration."""
         if user_input is not None:
-            # Merge with existing options
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
+            return self._save_options_entry(user_input)
 
-        defaults = {**DEFAULTS, **self.config_entry.options}
+        defaults = self._defaults()
         schema_dict = {
             vol.Required(CONF_TICK_MINUTES, default=int(defaults.get(CONF_TICK_MINUTES, DEFAULTS[CONF_TICK_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
             vol.Required(CONF_MAX_STEP_PER_TICK, default=int(defaults.get(CONF_MAX_STEP_PER_TICK, DEFAULTS[CONF_MAX_STEP_PER_TICK]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
@@ -288,12 +330,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     async def async_step_sunset(self, user_input: dict[str, Any] | None = None):
         """Sunset/Sunrise configuration - uses built-in sun.sun entity."""
         if user_input is not None:
-            # Merge with existing options
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
+            return self._save_options_entry(user_input)
 
-        defaults = {**DEFAULTS, **self.config_entry.options}
+        defaults = self._defaults()
         schema_dict = {
             vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=bool(defaults.get(CONF_ENABLE_SUNSET_CLOSING, DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]))): bool,
             vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNSET_OFFSET_MINUTES, DEFAULTS[CONF_SUNSET_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
@@ -310,12 +349,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     async def async_step_features(self, user_input: dict[str, Any] | None = None):
         """Feature toggles configuration."""
         if user_input is not None:
-            # Merge with existing options
-            options = dict(self.config_entry.options)
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
+            return self._save_options_entry(user_input)
 
-        defaults = {**DEFAULTS, **self.config_entry.options}
+        defaults = self._defaults()
         schema_dict = {
             vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=bool(defaults.get(CONF_ENABLE_PRIVACY_HOUR, DEFAULTS[CONF_ENABLE_PRIVACY_HOUR]))): bool,
             vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=bool(defaults.get(CONF_ENABLE_HIGH_LUX_PROTECTION, DEFAULTS[CONF_ENABLE_HIGH_LUX_PROTECTION]))): bool,
@@ -335,15 +371,27 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     async def async_step_entities(self, user_input: dict[str, Any] | None = None):
         """Reconfigure entities (cover, lux sensor)."""
         if user_input is not None:
-            if not user_input.get(CONF_TEMP_SENSOR):
-                user_input.pop(CONF_TEMP_SENSOR, None)
-            _convert_time_inputs(user_input)
-            # Merge with existing options
-            new_options = dict(self.config_entry.options)
-            new_options.update(user_input)
-            return self.async_create_entry(title="", data=new_options)
+            cleaned = self._normalized_options(user_input)
+            entry = self._entry()
+            new_data = dict(entry.data)
+            new_data.update(
+                {
+                    CONF_COVER_ENTITY: cleaned[CONF_COVER_ENTITY],
+                    CONF_LUX_SENSOR: cleaned[CONF_LUX_SENSOR],
+                    CONF_WINDOW_AZIMUTH: cleaned[CONF_WINDOW_AZIMUTH],
+                    CONF_WINDOW_VIEW_LEFT: cleaned[CONF_WINDOW_VIEW_LEFT],
+                    CONF_WINDOW_VIEW_RIGHT: cleaned[CONF_WINDOW_VIEW_RIGHT],
+                }
+            )
+            if CONF_TEMP_SENSOR in cleaned:
+                new_data[CONF_TEMP_SENSOR] = cleaned[CONF_TEMP_SENSOR]
+            else:
+                new_data.pop(CONF_TEMP_SENSOR, None)
 
-        defaults = {**self.config_entry.data, **self.config_entry.options}
+            self.hass.config_entries.async_update_entry(entry, data=new_data)
+            return self.async_create_entry(title="", data=dict(entry.options))
+
+        defaults = self._defaults()
         schema_dict = {
             vol.Required(CONF_COVER_ENTITY, default=defaults.get(CONF_COVER_ENTITY)): sel.EntitySelector(
                 sel.EntitySelectorConfig(domain="cover")

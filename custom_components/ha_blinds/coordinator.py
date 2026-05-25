@@ -9,13 +9,9 @@ import logging
 from typing import Any, Callable
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceRegistry
-from homeassistant.helpers.entity_registry import EntityRegistry
-from homeassistant.helpers.typing import StateType
+from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.const import STATE_UNKNOWN
 from homeassistant.helpers.dispatcher import async_dispatcher_send, async_dispatcher_connect
 
 from .const import (
@@ -280,28 +276,7 @@ class HaBlindsController:
                 _LOGGER.debug("Error traceback:", exc_info=True)
 
     def _update_state_attributes(self) -> None:
-        """Update diagnostic attributes in state."""
-        if not self._runtime.last_decision_time:
-            return
-
-        cover_entity = str(self._cfg(CONF_COVER_ENTITY))
-        paused_until_str = None
-        if self._runtime.paused_until:
-            paused_until_str = self._runtime.paused_until.isoformat()
-
-        self.hass.states.async_set(
-            f"{DOMAIN}.{self.entry.entry_id}_status",
-            "active" if not self._runtime.paused_until else "paused",
-            attributes={
-                "last_reason": self._runtime.last_reason,
-                "last_target": self._runtime.last_target,
-                "last_decision": self._runtime.last_decision_time.isoformat() if self._runtime.last_decision_time else None,
-                "paused_until": paused_until_str,
-                "cover_entity": cover_entity,
-                "error_count": self._runtime.error_count,
-                "sun_at_window": self._runtime.sun_at_window,
-            },
-        )
+        """Notify entities to refresh from runtime state."""
         async_dispatcher_send(self.hass, self._signal)
 
     def _cfg(self, key: str) -> Any:

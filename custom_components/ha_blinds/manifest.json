@@ -7,9 +7,9 @@
   "iot_class": "local_polling",
   "loggers": ["custom_components.ha_blinds"],
   "requirements": [],
-  "version": "1.16.0",
+  "version": "1.16.1",
   "config_flow": true,
   "icon": "mdi:window-shutter",
   "issue_tracker": "https://github.com/Snapicek/ha-blinds/issues",
-  "homeassistant": "2026.1.0"
+  "homeassistant": "2026.5.0"
 }

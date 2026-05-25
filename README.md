@@ -38,6 +38,10 @@ The automation **adapts continuously**, closing blinds when the sun is in your e
 
 ## 📦 Installation
 
+### Requirements
+
+- Home Assistant Core `2026.5.0` or newer
+
 ### Via HACS (Recommended)
 
 1. Open **HACS** → **Custom repositories**
@@ -463,7 +467,7 @@ automation:
     alias: Notify when blinds manually adjusted
     trigger:
       platform: template
-      value_template: "{{ state_attr('ha_blinds.my_entry_status', 'last_reason') == 'manual_override' }}"
+      value_template: "{{ states('sensor.<your_blind>_last_reason') == 'manual_override' }}"
     action:
       service: notify.mobile_app_phone
       data:
@@ -472,16 +476,23 @@ automation:
 
 ### Monitoring Status
 
-**Status Entity**: `ha_blinds.{ENTRY_ID}_status`
+**Use sensors on the HA Blinds device** (for each entry):
+
+- `sensor.<your_blind>_state`
+- `sensor.<your_blind>_last_reason`
+- `sensor.<your_blind>_target_position`
+- `sensor.<your_blind>_last_decision`
+- `sensor.<your_blind>_error_count`
+- `sensor.<your_blind>_sun_at_window`
 
 Check these attributes in **Developer Tools → States**:
 
 ```
-State: "active" or "paused"
+State (`sensor.<your_blind>_state`): "active" or "paused"
 
 Attributes:
   - last_reason: Why blinds are in current state
-  - last_target: Target position (%
+  - last_target: Target position (%)
   - last_decision: ISO timestamp of last evaluation
   - paused_until: ISO timestamp when pause expires
   - cover_entity: Which blind this controls
@@ -519,9 +530,9 @@ logger:
 ```
 Then check **Settings → System → Logs** for detailed decision logs.
 
-**Check 3: Check status entity**
+**Check 3: Check status sensor**
 ```
-Developer Tools → States → ha_blinds.{entry_id}_status
+Developer Tools → States → sensor.<your_blind>_state
 ```
 - If `error_count` is high → Config error
 - If `last_reason: "paused"` → Automation is paused
@@ -744,6 +755,12 @@ When you manually move blinds:
 ---
 
 ## 📝 Changelog
+
+### v1.16.1
+- 🔧 Updated minimum Home Assistant Core requirement to `2026.5.0`
+- 🔧 Aligned options flow with newer Home Assistant config flow patterns
+- 🐛 Fixed options persistence/reload edge cases that could cause crashes
+- 📝 Updated monitoring docs to use integration sensors
 
 ### v1.16.0
 - ✨ Added feature toggles (can disable specific rules)

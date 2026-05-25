@@ -48,6 +48,8 @@ async def async_setup_entry(
 class HaBlindsBaseSwitch(SwitchEntity):
     """Base switch."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, coordinator, entry: ConfigEntry):
         self.coordinator = coordinator
         self.entry = entry
@@ -83,9 +85,7 @@ class HaBlindsBaseSwitch(SwitchEntity):
         try:
             options = dict(self.entry.options)
             options[key] = value
-            await self.hass.config_entries.async_update_entry(
-                self.entry, options=options
-            )
+            self.hass.config_entries.async_update_entry(self.entry, options=options)
             # Trigger immediate evaluation with new config
             await self.hass.config_entries.async_reload(self.entry.entry_id)
         except Exception as err:
