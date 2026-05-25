@@ -4,18 +4,18 @@
 ![Project Maintenance](https://img.shields.io/badge/maintainer-%40Snapicek-blue.svg)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.5.0%2B-green.svg)
 
-Smart blind automation for Home Assistant using sun position, lux, temperature (optional), and time-based rules.
+Smart blind automation for Home Assistant using sun position, light level, optional temperature input, and time-based rules.
 
-## Features
+## What This Integration Can Do
 
-- UI-based setup via Config Flow (no YAML setup required)
-- Per-blind multi-instance support
-- Sun elevation and window-azimuth based positioning
-- High-lux and low-lux debounce protection
-- Optional heat-protection mode (temperature sensor)
-- Privacy hour and optional sunset closing
-- Runtime controls via services (`pause`, `resume`, `evaluate_now`)
-- Diagnostic sensors for state, reason, target, and error count
+- Automatically move blinds during the day based on sun elevation and window direction
+- Reduce glare with direct-sun + high-lux protection
+- Re-open blinds when lux drops, with debounce to prevent flapping
+- Apply heat protection during configured hours (summer behavior)
+- Enforce privacy mode at configured evening times (winter/summer split)
+- Close at sunset (optional feature)
+- Pause/resume automation instantly using built-in services
+- Run multiple independent blind automations in one Home Assistant instance
 
 ## Requirements
 
@@ -27,16 +27,16 @@ Smart blind automation for Home Assistant using sun position, lux, temperature (
 
 1. Open HACS.
 2. Go to **Integrations**.
-3. Click the menu (top-right) -> **Custom repositories**.
+3. Open menu (top-right) -> **Custom repositories**.
 4. Add repository URL:
    - `https://github.com/Snapicek/ha-blinds`
    - Category: **Integration**
-5. Find **HA Blinds** in HACS and install.
+5. Install **HA Blinds**.
 6. Restart Home Assistant.
 
 ### Manual
 
-1. Copy `custom_components/ha_blinds` into your Home Assistant config directory:
+1. Copy `custom_components/ha_blinds` to:
 
 ```text
 /config/custom_components/ha_blinds
@@ -44,32 +44,76 @@ Smart blind automation for Home Assistant using sun position, lux, temperature (
 
 2. Restart Home Assistant.
 
-## Configuration
+## Quick Setup
 
 1. Go to **Settings -> Devices & Services -> Add Integration**.
 2. Search for **HA Blinds**.
-3. Select:
-   - Cover entity (required)
-   - Lux sensor (required, illuminance)
+3. Pick entities:
+   - Cover (required)
+   - Lux sensor (required)
    - Temperature sensor (optional)
 4. Set window geometry:
-   - Window azimuth (0-359)
-   - View left / view right (0-180)
-5. Finish setup, then tune behavior in **Options**.
+   - Window azimuth (`0..359`)
+   - View left (`0..180`)
+   - View right (`0..180`)
+5. Save and tune behavior in **Options**.
 
-### Common options
+## How the Code Works
 
-- Tick interval (`tick_minutes`): evaluation frequency
-- Debounce (`debounce_minutes`): anti-flapping delay
-- Lux thresholds (summer/winter open/close)
-- Heat protection (start/end hours, position, temp threshold)
-- Privacy hours (winter/summer) and duration
-- Night close position (`0` or `100`)
-- Feature toggles (sun tracking, lux, heat, privacy, sunset)
+The integration is split into clear runtime layers:
 
-## Entities
+- `custom_components/ha_blinds/config_flow.py`
+  - Handles setup and options UI
+  - Validates and normalizes user input (time selectors, numeric ranges)
+  - Persists stable identifiers in `entry.data` and behavior values in `entry.options`
+- `custom_components/ha_blinds/coordinator.py`
+  - Runtime controller for each config entry
+  - Triggers periodic evaluation every `tick_minutes`
+  - Reads states from `cover`, `sun.sun`, lux sensor, and optional temp sensor
+  - Applies movement limits (`max_step_per_tick`) and optional Zigbee delay
+- `custom_components/ha_blinds/logic.py`
+  - Pure decision engine (no Home Assistant dependencies)
+  - Produces deterministic target + reason based on config + inputs
+- `custom_components/ha_blinds/sensor.py`, `switch.py`, `button.py`
+  - Expose status, toggles, and manual actions in UI
 
-Each config entry creates sensors under the HA Blinds device, including:
+### Runtime flow
+
+1. Controller gathers current states.
+2. Decision engine evaluates rules in priority order.
+3. Result returns `should_move`, `target_position`, and a reason.
+4. Controller sends `cover.set_cover_position` when needed.
+5. Sensors update with reason, target, timestamps, and error counters.
+
+## Decision Model (Priority)
+
+Highest to lowest:
+
+1. Paused automation
+2. Sunset closing (if enabled)
+3. Privacy hour duration window
+4. Night close (sun below horizon)
+5. High lux + direct sun protection
+6. Heat protection
+7. Low lux reopen
+8. Sun elevation tracking
+
+This order ensures safety and privacy rules override comfort rules.
+
+## Main Options and Their Impact
+
+- `tick_minutes`: how often logic runs
+- `max_step_per_tick`: smooth vs aggressive movement
+- `debounce_minutes`: anti-flapping delay for lux-triggered transitions
+- Lux thresholds (`lux_close_*`, `lux_open_*`): when to close/reopen
+- Heat window (`heat_start_hour`, `heat_end_hour`, `heat_position`, `temp_threshold`)
+- Privacy (`winter_privacy_hour`, `summer_privacy_hour`, `privacy_duration_minutes`)
+- `night_close_position`: `0` (closed) or `100` (privacy mode)
+- Feature toggles: enable/disable specific rule groups
+
+## Entities Created
+
+Each config entry creates sensors on the HA Blinds device:
 
 - `sensor.<entry>_state`
 - `sensor.<entry>_last_reason`
@@ -78,14 +122,16 @@ Each config entry creates sensors under the HA Blinds device, including:
 - `sensor.<entry>_error_count`
 - `sensor.<entry>_sun_at_window`
 
+Useful attributes on `sensor.<entry>_state` include `last_reason`, `last_target`, `paused_until`, and `error_count`.
+
 ## Services
 
 - `ha_blinds.pause`
-  - Optional: `entry_id`, `minutes`
+  - Optional fields: `entry_id`, `minutes`
 - `ha_blinds.resume`
-  - Optional: `entry_id`
+  - Optional field: `entry_id`
 - `ha_blinds.evaluate_now`
-  - Optional: `entry_id`
+  - Optional field: `entry_id`
 
 Example:
 
@@ -96,9 +142,16 @@ data:
   minutes: 30
 ```
 
+## Typical Use Cases
+
+- **Home office glare control**: enable high-lux protection + longer debounce
+- **Summer cooling**: set heat protection hours and lower temp threshold
+- **Privacy-first setup**: earlier privacy hour + long privacy duration
+- **Quiet Zigbee network**: add `zigbee_delay_seconds` for slow cover hardware
+
 ## Troubleshooting
 
-1. Enable debug logs:
+1. Enable integration debug logs:
 
 ```yaml
 logger:
@@ -106,9 +159,19 @@ logger:
     custom_components.ha_blinds: debug
 ```
 
-2. Check integration sensors (`*_state`, `*_last_reason`, `*_error_count`).
-3. Use `ha_blinds.evaluate_now` to trigger an immediate decision.
-4. Verify configured entities exist and report valid values.
+2. Check these sensors first:
+   - `sensor.<entry>_state`
+   - `sensor.<entry>_last_reason`
+   - `sensor.<entry>_error_count`
+3. Run `ha_blinds.evaluate_now` to test immediate response.
+4. Verify configured entities exist and have valid numeric states.
+
+## Limitations and Notes
+
+- Requires valid cover + lux entities to act.
+- Heat protection depends on optional temperature sensor and summer conditions.
+- Logic is local-only; no external cloud dependency.
+- Designed for periodic, bounded movement (not continuous real-time tracking).
 
 ## Changelog
 
@@ -124,8 +187,3 @@ logger:
 - Issues: `https://github.com/Snapicek/ha-blinds/issues`
 - Repository: `https://github.com/Snapicek/ha-blinds`
 
-## Notes
-
-- Local-only processing (no cloud required)
-- Works offline after setup
-- Designed for safe periodic evaluation and gradual movement
