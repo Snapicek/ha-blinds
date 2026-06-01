@@ -109,6 +109,121 @@ def _night_position_default_label(value: Any, fallback: int) -> str:
     return "0 (Closed)" if position == 0 else "100 (Privacy Mode)"
 
 
+def _coerce_int_default(value: Any, fallback: int) -> int:
+    """Coerce legacy numeric defaults while tolerating old string formats."""
+    try:
+        if isinstance(value, bool):
+            raise ValueError("bool is not valid int option")
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        if isinstance(value, str):
+            raw = value.strip()
+            if ":" in raw:
+                raw = raw.split(":", 1)[0].strip()
+            if " " in raw:
+                raw = raw.split(" ", 1)[0].strip()
+            return int(float(raw))
+    except (TypeError, ValueError):
+        pass
+    return int(fallback)
+
+
+def _coerce_float_default(value: Any, fallback: float) -> float:
+    """Coerce legacy float defaults while tolerating old string formats."""
+    try:
+        if isinstance(value, bool):
+            raise ValueError("bool is not valid float option")
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            return float(value.strip())
+    except (TypeError, ValueError):
+        pass
+    return float(fallback)
+
+
+def _coerce_bool_default(value: Any, fallback: bool) -> bool:
+    """Coerce legacy boolean defaults from bool/int/string values."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off"}:
+            return False
+    return bool(fallback)
+
+
+def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
+    """Normalize persisted option values so options forms can always render."""
+    sanitized = dict(defaults)
+
+    int_keys = (
+        CONF_LUX_CLOSE_SUMMER,
+        CONF_LUX_OPEN_SUMMER,
+        CONF_LUX_CLOSE_WINTER,
+        CONF_LUX_OPEN_WINTER,
+        CONF_DEBOUNCE_MINUTES,
+        CONF_TICK_MINUTES,
+        CONF_MAX_STEP_PER_TICK,
+        CONF_HEAT_POSITION,
+        CONF_PRIVACY_DURATION_MINUTES,
+        CONF_MANUAL_OVERRIDE_MINUTES,
+        CONF_ZIGBEE_DELAY_SECONDS,
+        CONF_SUNSET_OFFSET_MINUTES,
+        CONF_SUNRISE_OFFSET_MINUTES,
+    )
+    for key in int_keys:
+        sanitized[key] = _coerce_int_default(sanitized.get(key), int(DEFAULTS[key]))
+
+    sanitized[CONF_TEMP_THRESHOLD] = _coerce_float_default(
+        sanitized.get(CONF_TEMP_THRESHOLD),
+        float(DEFAULTS[CONF_TEMP_THRESHOLD]),
+    )
+
+    bool_keys = (
+        CONF_ENABLE_SUNSET_CLOSING,
+        CONF_ENABLE_PRIVACY_HOUR,
+        CONF_ENABLE_HIGH_LUX_PROTECTION,
+        CONF_ENABLE_HEAT_PROTECTION,
+        CONF_ENABLE_LOW_LUX_REOPEN,
+        CONF_ENABLE_SUN_ELEVATION_TRACKING,
+    )
+    for key in bool_keys:
+        sanitized[key] = _coerce_bool_default(sanitized.get(key), bool(DEFAULTS[key]))
+
+    try:
+        sanitized[CONF_HEAT_START_HOUR] = _coerce_hour_value(sanitized.get(CONF_HEAT_START_HOUR))
+    except (TypeError, ValueError):
+        sanitized[CONF_HEAT_START_HOUR] = int(DEFAULTS[CONF_HEAT_START_HOUR])
+    try:
+        sanitized[CONF_HEAT_END_HOUR] = _coerce_hour_value(sanitized.get(CONF_HEAT_END_HOUR))
+    except (TypeError, ValueError):
+        sanitized[CONF_HEAT_END_HOUR] = int(DEFAULTS[CONF_HEAT_END_HOUR])
+    try:
+        sanitized[CONF_WINTER_PRIVACY_HOUR] = _coerce_hour_value(sanitized.get(CONF_WINTER_PRIVACY_HOUR))
+    except (TypeError, ValueError):
+        sanitized[CONF_WINTER_PRIVACY_HOUR] = int(DEFAULTS[CONF_WINTER_PRIVACY_HOUR])
+    try:
+        sanitized[CONF_SUMMER_PRIVACY_HOUR] = _coerce_hour_value(sanitized.get(CONF_SUMMER_PRIVACY_HOUR))
+    except (TypeError, ValueError):
+        sanitized[CONF_SUMMER_PRIVACY_HOUR] = int(DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])
+
+    try:
+        sanitized[CONF_NIGHT_CLOSE_POSITION] = _coerce_night_close_position(
+            sanitized.get(CONF_NIGHT_CLOSE_POSITION)
+        )
+    except (TypeError, ValueError):
+        sanitized[CONF_NIGHT_CLOSE_POSITION] = int(DEFAULTS[CONF_NIGHT_CLOSE_POSITION])
+
+    return sanitized
+
+
 def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
     schema = {
         vol.Required(CONF_COVER_ENTITY): sel.EntitySelector(
@@ -145,23 +260,24 @@ def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
 
 
 def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
+    defaults = _sanitize_option_defaults({**DEFAULTS, **defaults})
     return vol.Schema(
         {
-            vol.Required(CONF_LUX_CLOSE_SUMMER, default=int(defaults.get(CONF_LUX_CLOSE_SUMMER, DEFAULTS[CONF_LUX_CLOSE_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=1000, max=120000)),
-            vol.Required(CONF_LUX_OPEN_SUMMER, default=int(defaults.get(CONF_LUX_OPEN_SUMMER, DEFAULTS[CONF_LUX_OPEN_SUMMER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_LUX_CLOSE_WINTER, default=int(defaults.get(CONF_LUX_CLOSE_WINTER, DEFAULTS[CONF_LUX_CLOSE_WINTER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_LUX_OPEN_WINTER, default=int(defaults.get(CONF_LUX_OPEN_WINTER, DEFAULTS[CONF_LUX_OPEN_WINTER]))): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_DEBOUNCE_MINUTES, default=int(defaults.get(CONF_DEBOUNCE_MINUTES, DEFAULTS[CONF_DEBOUNCE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
-            vol.Required(CONF_TICK_MINUTES, default=int(defaults.get(CONF_TICK_MINUTES, DEFAULTS[CONF_TICK_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
-            vol.Required(CONF_MAX_STEP_PER_TICK, default=int(defaults.get(CONF_MAX_STEP_PER_TICK, DEFAULTS[CONF_MAX_STEP_PER_TICK]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
+            vol.Required(CONF_LUX_CLOSE_SUMMER, default=defaults[CONF_LUX_CLOSE_SUMMER]): vol.All(vol.Coerce(int), vol.Range(min=1000, max=120000)),
+            vol.Required(CONF_LUX_OPEN_SUMMER, default=defaults[CONF_LUX_OPEN_SUMMER]): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
+            vol.Required(CONF_LUX_CLOSE_WINTER, default=defaults[CONF_LUX_CLOSE_WINTER]): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
+            vol.Required(CONF_LUX_OPEN_WINTER, default=defaults[CONF_LUX_OPEN_WINTER]): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
+            vol.Required(CONF_DEBOUNCE_MINUTES, default=defaults[CONF_DEBOUNCE_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+            vol.Required(CONF_TICK_MINUTES, default=defaults[CONF_TICK_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+            vol.Required(CONF_MAX_STEP_PER_TICK, default=defaults[CONF_MAX_STEP_PER_TICK]): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
             vol.Required(CONF_HEAT_START_HOUR, default=_hour_default_label(defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR]), DEFAULTS[CONF_HEAT_START_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_HEAT_END_HOUR, default=_hour_default_label(defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR]), DEFAULTS[CONF_HEAT_END_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_HEAT_POSITION, default=int(defaults.get(CONF_HEAT_POSITION, DEFAULTS[CONF_HEAT_POSITION]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
-            vol.Required(CONF_TEMP_THRESHOLD, default=float(defaults.get(CONF_TEMP_THRESHOLD, DEFAULTS[CONF_TEMP_THRESHOLD]))): vol.All(vol.Coerce(float), vol.Range(min=10, max=40)),
+            vol.Required(CONF_HEAT_POSITION, default=defaults[CONF_HEAT_POSITION]): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+            vol.Required(CONF_TEMP_THRESHOLD, default=defaults[CONF_TEMP_THRESHOLD]): vol.All(vol.Coerce(float), vol.Range(min=10, max=40)),
             vol.Required(CONF_WINTER_PRIVACY_HOUR, default=_hour_default_label(defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR]), DEFAULTS[CONF_WINTER_PRIVACY_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=_hour_default_label(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR]), DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_PRIVACY_DURATION_MINUTES, default=int(defaults.get(CONF_PRIVACY_DURATION_MINUTES, DEFAULTS[CONF_PRIVACY_DURATION_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=60, max=1440)),
-            vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
+            vol.Required(CONF_PRIVACY_DURATION_MINUTES, default=defaults[CONF_PRIVACY_DURATION_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=60, max=1440)),
+            vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=defaults[CONF_MANUAL_OVERRIDE_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
             vol.Required(
                 CONF_NIGHT_CLOSE_POSITION,
                 default=_night_position_default_label(
@@ -169,17 +285,17 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
                     DEFAULTS[CONF_NIGHT_CLOSE_POSITION],
                 ),
             ): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
-            vol.Required(CONF_ZIGBEE_DELAY_SECONDS, default=int(defaults.get(CONF_ZIGBEE_DELAY_SECONDS, DEFAULTS[CONF_ZIGBEE_DELAY_SECONDS]))): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
+            vol.Required(CONF_ZIGBEE_DELAY_SECONDS, default=defaults[CONF_ZIGBEE_DELAY_SECONDS]): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
             # Sunset/Sunrise feature - uses sun.sun entity
-            vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=bool(defaults.get(CONF_ENABLE_SUNSET_CLOSING, DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]))): bool,
-            vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNSET_OFFSET_MINUTES, DEFAULTS[CONF_SUNSET_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
-            vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNRISE_OFFSET_MINUTES, DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+            vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=defaults[CONF_ENABLE_SUNSET_CLOSING]): bool,
+            vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=defaults[CONF_SUNSET_OFFSET_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+            vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=defaults[CONF_SUNRISE_OFFSET_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
             # Feature toggles
-            vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=bool(defaults.get(CONF_ENABLE_PRIVACY_HOUR, DEFAULTS[CONF_ENABLE_PRIVACY_HOUR]))): bool,
-            vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=bool(defaults.get(CONF_ENABLE_HIGH_LUX_PROTECTION, DEFAULTS[CONF_ENABLE_HIGH_LUX_PROTECTION]))): bool,
-            vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=bool(defaults.get(CONF_ENABLE_HEAT_PROTECTION, DEFAULTS[CONF_ENABLE_HEAT_PROTECTION]))): bool,
-            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=bool(defaults.get(CONF_ENABLE_LOW_LUX_REOPEN, DEFAULTS[CONF_ENABLE_LOW_LUX_REOPEN]))): bool,
-            vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=bool(defaults.get(CONF_ENABLE_SUN_ELEVATION_TRACKING, DEFAULTS[CONF_ENABLE_SUN_ELEVATION_TRACKING]))): bool,
+            vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=defaults[CONF_ENABLE_PRIVACY_HOUR]): bool,
+            vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=defaults[CONF_ENABLE_HIGH_LUX_PROTECTION]): bool,
+            vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=defaults[CONF_ENABLE_HEAT_PROTECTION]): bool,
+            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=defaults[CONF_ENABLE_LOW_LUX_REOPEN]): bool,
+            vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=defaults[CONF_ENABLE_SUN_ELEVATION_TRACKING]): bool,
         }
     )
 
@@ -289,7 +405,28 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
         except vol.Invalid:
             _LOGGER.exception("Unable to resolve config entry; falling back to hard defaults")
             return dict(DEFAULTS)
-        return {**DEFAULTS, **entry.data, **entry.options}
+        return _sanitize_option_defaults({**DEFAULTS, **entry.data, **entry.options})
+
+    def _show_schema_form(
+        self,
+        step_id: str,
+        schema_dict: dict[Any, Any],
+        errors: dict[str, str],
+        description_placeholders: dict[str, str],
+    ):
+        """Render a form while preventing schema build crashes from bubbling up."""
+        try:
+            schema = vol.Schema(schema_dict)
+        except Exception:
+            _LOGGER.exception("Failed to build schema for options step '%s'", step_id)
+            errors = {**errors, "base": "unknown"}
+            schema = vol.Schema({})
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=schema,
+            errors=errors,
+            description_placeholders=description_placeholders,
+        )
 
     def _normalized_options(self, user_input: dict[str, Any]) -> dict[str, Any]:
         """Normalize selector outputs and keep option types stable."""
@@ -346,9 +483,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=_hour_default_label(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR]), DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_NIGHT_CLOSE_POSITION, default=_night_position_default_label(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION]), DEFAULTS[CONF_NIGHT_CLOSE_POSITION])): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
         }
-        return self.async_show_form(
+        return self._show_schema_form(
             step_id="thresholds",
-            data_schema=vol.Schema(schema_dict),
+            schema_dict=schema_dict,
             errors=errors,
             description_placeholders={
                 "help": "Adjust lux thresholds, heat protection, and privacy hours",
@@ -372,9 +509,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             vol.Required(CONF_DEBOUNCE_MINUTES, default=int(defaults.get(CONF_DEBOUNCE_MINUTES, DEFAULTS[CONF_DEBOUNCE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
             vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
         }
-        return self.async_show_form(
+        return self._show_schema_form(
             step_id="timing",
-            data_schema=vol.Schema(schema_dict),
+            schema_dict=schema_dict,
             errors=errors,
             description_placeholders={
                 "help": "Adjust check frequency, movement speed, and response timing",
@@ -397,9 +534,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNSET_OFFSET_MINUTES, DEFAULTS[CONF_SUNSET_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
             vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=int(defaults.get(CONF_SUNRISE_OFFSET_MINUTES, DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
         }
-        return self.async_show_form(
+        return self._show_schema_form(
             step_id="sunset",
-            data_schema=vol.Schema(schema_dict),
+            schema_dict=schema_dict,
             errors=errors,
             description_placeholders={
                 "help": "Configure sunset/sunrise offsets. Uses the built-in sun.sun entity (automatically detected).",
@@ -424,9 +561,9 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=bool(defaults.get(CONF_ENABLE_LOW_LUX_REOPEN, DEFAULTS[CONF_ENABLE_LOW_LUX_REOPEN]))): bool,
             vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=bool(defaults.get(CONF_ENABLE_SUN_ELEVATION_TRACKING, DEFAULTS[CONF_ENABLE_SUN_ELEVATION_TRACKING]))): bool,
         }
-        return self.async_show_form(
+        return self._show_schema_form(
             step_id="features",
-            data_schema=vol.Schema(schema_dict),
+            schema_dict=schema_dict,
             errors=errors,
             description_placeholders={
                 "help": "Enable or disable specific automation rules",
