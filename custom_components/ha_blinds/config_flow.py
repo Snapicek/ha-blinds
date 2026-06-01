@@ -378,15 +378,12 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        return HaBlindsOptionsFlow(config_entry)
+        return HaBlindsOptionsFlow()
 
 
-class HaBlindsOptionsFlow(config_entries.OptionsFlow):
+class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
     """Options flow for HA Blinds."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow with the active config entry."""
-        self.config_entry = config_entry
 
     def _entry(self) -> config_entries.ConfigEntry:
         """Return active config entry for this options flow."""
