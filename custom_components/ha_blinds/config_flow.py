@@ -541,10 +541,25 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
 
         defaults = self._defaults()
         schema_dict = {
-            vol.Required(CONF_TICK_MINUTES, default=int(defaults.get(CONF_TICK_MINUTES, DEFAULTS[CONF_TICK_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
-            vol.Required(CONF_MAX_STEP_PER_TICK, default=int(defaults.get(CONF_MAX_STEP_PER_TICK, DEFAULTS[CONF_MAX_STEP_PER_TICK]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
-            vol.Required(CONF_DEBOUNCE_MINUTES, default=int(defaults.get(CONF_DEBOUNCE_MINUTES, DEFAULTS[CONF_DEBOUNCE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
-            vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=int(defaults.get(CONF_MANUAL_OVERRIDE_MINUTES, DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]))): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
+            vol.Required(
+                CONF_TICK_MINUTES,
+                default=_coerce_int_default(defaults.get(CONF_TICK_MINUTES), int(DEFAULTS[CONF_TICK_MINUTES])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+            vol.Required(
+                CONF_MAX_STEP_PER_TICK,
+                default=_coerce_int_default(defaults.get(CONF_MAX_STEP_PER_TICK), int(DEFAULTS[CONF_MAX_STEP_PER_TICK])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
+            vol.Required(
+                CONF_DEBOUNCE_MINUTES,
+                default=_coerce_int_default(defaults.get(CONF_DEBOUNCE_MINUTES), int(DEFAULTS[CONF_DEBOUNCE_MINUTES])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+            vol.Required(
+                CONF_MANUAL_OVERRIDE_MINUTES,
+                default=_coerce_int_default(
+                    defaults.get(CONF_MANUAL_OVERRIDE_MINUTES),
+                    int(DEFAULTS[CONF_MANUAL_OVERRIDE_MINUTES]),
+                ),
+            ): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
         }
         return self._show_schema_form(
             step_id="timing",
