@@ -82,7 +82,7 @@ class HaBlindsController:
     async def async_start(self) -> None:
         """Start periodic evaluation and create device."""
         self._setup_device()
-        tick = int(self._cfg(CONF_TICK_MINUTES))
+        tick = self._cfg_int(CONF_TICK_MINUTES)
         self._unsub_interval = async_track_time_interval(
             self.hass,
             self._async_handle_tick,
@@ -116,7 +116,7 @@ class HaBlindsController:
 
     async def async_pause(self, minutes: int | None = None) -> None:
         """Pause automation for given minutes or configured default."""
-        duration = minutes if minutes and minutes > 0 else int(self._cfg(CONF_MANUAL_OVERRIDE_MINUTES))
+        duration = minutes if minutes and minutes > 0 else self._cfg_int(CONF_MANUAL_OVERRIDE_MINUTES)
         self._runtime.paused_until = dt_util.now() + timedelta(minutes=duration)
         _LOGGER.info("HA Blinds paused for %s minutes on entry %s", duration, self.entry.entry_id)
         self._update_state_attributes()
@@ -201,7 +201,7 @@ class HaBlindsController:
                 self._runtime.privacy_entered_at = now
             elif result.reason != "privacy_hour" and self._runtime.privacy_entered_at is not None:
                 # Left privacy hour (time-based, not duration-based)
-                privacy_hour = int(self._cfg(CONF_WINTER_PRIVACY_HOUR)) if is_winter else int(self._cfg(CONF_SUMMER_PRIVACY_HOUR))
+                privacy_hour = self._cfg_int(CONF_WINTER_PRIVACY_HOUR) if is_winter else self._cfg_int(CONF_SUMMER_PRIVACY_HOUR)
                 if now.hour < privacy_hour:
                     # Reset only if we're before privacy hour time
                     self._runtime.privacy_entered_at = None
@@ -214,8 +214,8 @@ class HaBlindsController:
 
             # Update lux tracking based on thresholds
             is_winter = now.month in (11, 12, 1, 2, 3)
-            close_threshold = float(self._cfg(CONF_LUX_CLOSE_WINTER if is_winter else CONF_LUX_CLOSE_SUMMER))
-            open_threshold = float(self._cfg(CONF_LUX_OPEN_WINTER if is_winter else CONF_LUX_OPEN_SUMMER))
+            close_threshold = self._cfg_float(CONF_LUX_CLOSE_WINTER if is_winter else CONF_LUX_CLOSE_SUMMER)
+            open_threshold = self._cfg_float(CONF_LUX_OPEN_WINTER if is_winter else CONF_LUX_OPEN_SUMMER)
 
             if lux is not None and (enable_high_lux or enable_low_lux):
                 if lux >= close_threshold and enable_high_lux:
@@ -235,7 +235,7 @@ class HaBlindsController:
                 self._update_state_attributes()
                 return
 
-            step = max(1, int(self._cfg(CONF_MAX_STEP_PER_TICK)))
+            step = max(1, self._cfg_int(CONF_MAX_STEP_PER_TICK))
             target = result.target_position
             if target > current_position:
                 target = min(target, current_position + step)
@@ -243,7 +243,7 @@ class HaBlindsController:
                 target = max(target, current_position - step)
 
             # Apply Zigbee delay to avoid overwhelming network
-            zigbee_delay = float(self._cfg(CONF_ZIGBEE_DELAY_SECONDS))
+            zigbee_delay = self._cfg_float(CONF_ZIGBEE_DELAY_SECONDS)
             if zigbee_delay > 0:
                 await asyncio.sleep(zigbee_delay)
 
@@ -286,32 +286,91 @@ class HaBlindsController:
             return self.entry.data[key]
         return DEFAULTS.get(key)
 
+    @staticmethod
+    def _coerce_int(value: Any, fallback: int) -> int:
+        """Coerce persisted values to int while tolerating legacy selector strings."""
+        try:
+            if isinstance(value, bool):
+                raise ValueError("bool is not a valid int config")
+            if isinstance(value, int):
+                return value
+            if isinstance(value, float):
+                return int(value)
+            if isinstance(value, str):
+                raw = value.strip()
+                if ":" in raw:
+                    raw = raw.split(":", 1)[0].strip()
+                if " " in raw:
+                    raw = raw.split(" ", 1)[0].strip()
+                return int(float(raw))
+        except (TypeError, ValueError):
+            pass
+        return int(fallback)
+
+    @staticmethod
+    def _coerce_float(value: Any, fallback: float) -> float:
+        """Coerce persisted values to float with safe fallback."""
+        try:
+            if isinstance(value, bool):
+                raise ValueError("bool is not a valid float config")
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                return float(value.strip())
+        except (TypeError, ValueError):
+            pass
+        return float(fallback)
+
+    @staticmethod
+    def _coerce_bool(value: Any, fallback: bool) -> bool:
+        """Coerce persisted values to bool with legacy string support."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return bool(value)
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"1", "true", "yes", "on"}:
+                return True
+            if lowered in {"0", "false", "no", "off"}:
+                return False
+        return bool(fallback)
+
+    def _cfg_int(self, key: str) -> int:
+        return self._coerce_int(self._cfg(key), int(DEFAULTS[key]))
+
+    def _cfg_float(self, key: str) -> float:
+        return self._coerce_float(self._cfg(key), float(DEFAULTS[key]))
+
+    def _cfg_bool(self, key: str) -> bool:
+        return self._coerce_bool(self._cfg(key), bool(DEFAULTS[key]))
+
     def _decision_config(self) -> DecisionConfig:
         return DecisionConfig(
-            window_azimuth=int(self._cfg(CONF_WINDOW_AZIMUTH)),
-            window_view_left=int(self._cfg(CONF_WINDOW_VIEW_LEFT)),
-            window_view_right=int(self._cfg(CONF_WINDOW_VIEW_RIGHT)),
-            lux_close_summer=float(self._cfg(CONF_LUX_CLOSE_SUMMER)),
-            lux_open_summer=float(self._cfg(CONF_LUX_OPEN_SUMMER)),
-            lux_close_winter=float(self._cfg(CONF_LUX_CLOSE_WINTER)),
-            lux_open_winter=float(self._cfg(CONF_LUX_OPEN_WINTER)),
-            debounce_minutes=int(self._cfg(CONF_DEBOUNCE_MINUTES)),
-            heat_start_hour=int(self._cfg(CONF_HEAT_START_HOUR)),
-            heat_end_hour=int(self._cfg(CONF_HEAT_END_HOUR)),
-            heat_position=int(self._cfg(CONF_HEAT_POSITION)),
-            temp_threshold=float(self._cfg(CONF_TEMP_THRESHOLD)),
-            winter_privacy_hour=int(self._cfg(CONF_WINTER_PRIVACY_HOUR)),
-            summer_privacy_hour=int(self._cfg(CONF_SUMMER_PRIVACY_HOUR)),
-            privacy_duration_minutes=int(self._cfg(CONF_PRIVACY_DURATION_MINUTES)),
-            night_close_position=int(self._cfg(CONF_NIGHT_CLOSE_POSITION)),
-            enable_heat_protection=bool(self._cfg(CONF_ENABLE_HEAT_PROTECTION)),
-            enable_high_lux_protection=bool(self._cfg(CONF_ENABLE_HIGH_LUX_PROTECTION)),
-            enable_low_lux_reopen=bool(self._cfg(CONF_ENABLE_LOW_LUX_REOPEN)),
-            enable_privacy_hour=bool(self._cfg(CONF_ENABLE_PRIVACY_HOUR)),
-            enable_sun_elevation_tracking=bool(self._cfg(CONF_ENABLE_SUN_ELEVATION_TRACKING)),
-            enable_sunset_closing=bool(self._cfg(CONF_ENABLE_SUNSET_CLOSING)),
-            sunrise_offset_minutes=int(self._cfg(CONF_SUNRISE_OFFSET_MINUTES)),
-            sunset_offset_minutes=int(self._cfg(CONF_SUNSET_OFFSET_MINUTES)),
+            window_azimuth=self._cfg_int(CONF_WINDOW_AZIMUTH),
+            window_view_left=self._cfg_int(CONF_WINDOW_VIEW_LEFT),
+            window_view_right=self._cfg_int(CONF_WINDOW_VIEW_RIGHT),
+            lux_close_summer=self._cfg_float(CONF_LUX_CLOSE_SUMMER),
+            lux_open_summer=self._cfg_float(CONF_LUX_OPEN_SUMMER),
+            lux_close_winter=self._cfg_float(CONF_LUX_CLOSE_WINTER),
+            lux_open_winter=self._cfg_float(CONF_LUX_OPEN_WINTER),
+            debounce_minutes=self._cfg_int(CONF_DEBOUNCE_MINUTES),
+            heat_start_hour=self._cfg_int(CONF_HEAT_START_HOUR),
+            heat_end_hour=self._cfg_int(CONF_HEAT_END_HOUR),
+            heat_position=self._cfg_int(CONF_HEAT_POSITION),
+            temp_threshold=self._cfg_float(CONF_TEMP_THRESHOLD),
+            winter_privacy_hour=self._cfg_int(CONF_WINTER_PRIVACY_HOUR),
+            summer_privacy_hour=self._cfg_int(CONF_SUMMER_PRIVACY_HOUR),
+            privacy_duration_minutes=self._cfg_int(CONF_PRIVACY_DURATION_MINUTES),
+            night_close_position=self._cfg_int(CONF_NIGHT_CLOSE_POSITION),
+            enable_heat_protection=self._cfg_bool(CONF_ENABLE_HEAT_PROTECTION),
+            enable_high_lux_protection=self._cfg_bool(CONF_ENABLE_HIGH_LUX_PROTECTION),
+            enable_low_lux_reopen=self._cfg_bool(CONF_ENABLE_LOW_LUX_REOPEN),
+            enable_privacy_hour=self._cfg_bool(CONF_ENABLE_PRIVACY_HOUR),
+            enable_sun_elevation_tracking=self._cfg_bool(CONF_ENABLE_SUN_ELEVATION_TRACKING),
+            enable_sunset_closing=self._cfg_bool(CONF_ENABLE_SUNSET_CLOSING),
+            sunrise_offset_minutes=self._cfg_int(CONF_SUNRISE_OFFSET_MINUTES),
+            sunset_offset_minutes=self._cfg_int(CONF_SUNSET_OFFSET_MINUTES),
         )
 
     def _float_state(self, entity_id: str) -> float | None:
@@ -355,7 +414,7 @@ class HaBlindsController:
         if sunset_time is None:
             return None
 
-        offset_minutes = int(self._cfg(CONF_SUNSET_OFFSET_MINUTES))
+        offset_minutes = self._cfg_int(CONF_SUNSET_OFFSET_MINUTES)
         if offset_minutes != 0:
             sunset_time = sunset_time + timedelta(minutes=offset_minutes)
 
@@ -368,7 +427,7 @@ class HaBlindsController:
         if sunrise_time is None:
             return None
 
-        offset_minutes = int(self._cfg(CONF_SUNRISE_OFFSET_MINUTES))
+        offset_minutes = self._cfg_int(CONF_SUNRISE_OFFSET_MINUTES)
         if offset_minutes != 0:
             sunrise_time = sunrise_time + timedelta(minutes=offset_minutes)
 
