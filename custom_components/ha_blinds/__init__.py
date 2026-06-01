@@ -125,4 +125,7 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry when options change."""
-    await async_reload_entry(hass, entry)
+    try:
+        await async_reload_entry(hass, entry)
+    except Exception:
+        _LOGGER.exception("Failed to reload HA Blinds entry %s after options update", entry.entry_id)

@@ -445,11 +445,15 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
 
     def _save_options_entry(self, user_input: dict[str, Any]):
         """Merge and persist updated options."""
-        entry = self._entry()
-        options = dict(entry.options)
-        options.update(self._normalized_options(user_input))
-        _LOGGER.debug("Saving options for entry %s: keys=%s", entry.entry_id, sorted(options.keys()))
-        return self.async_create_entry(title="", data=options)
+        try:
+            entry = self._entry()
+            options = dict(entry.options)
+            options.update(self._normalized_options(user_input))
+            _LOGGER.debug("Saving options for entry %s: keys=%s", entry.entry_id, sorted(options.keys()))
+            return self.async_create_entry(title="", data=options)
+        except Exception as err:
+            _LOGGER.exception("Failed to save options entry")
+            raise vol.Invalid("Invalid option value") from err
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Show main options menu."""
@@ -468,7 +472,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
         if user_input is not None:
             try:
                 return self._save_options_entry(user_input)
-            except vol.Invalid:
+            except Exception:
                 _LOGGER.exception("Invalid threshold options payload")
                 errors["base"] = "unknown"
 
@@ -501,7 +505,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
         if user_input is not None:
             try:
                 return self._save_options_entry(user_input)
-            except vol.Invalid:
+            except Exception:
                 _LOGGER.exception("Invalid timing options payload")
                 errors["base"] = "unknown"
 
@@ -527,7 +531,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
         if user_input is not None:
             try:
                 return self._save_options_entry(user_input)
-            except vol.Invalid:
+            except Exception:
                 _LOGGER.exception("Invalid sunset options payload")
                 errors["base"] = "unknown"
 
@@ -552,7 +556,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
         if user_input is not None:
             try:
                 return self._save_options_entry(user_input)
-            except vol.Invalid:
+            except Exception:
                 _LOGGER.exception("Invalid feature toggle payload")
                 errors["base"] = "unknown"
 
