@@ -139,6 +139,20 @@
           "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
         }
       },
+      "sunset": {
+        "title": "Sunset/Sunrise Settings",
+        "description": "Configure automatic close/open behavior around sunset and sunrise.",
+        "data": {
+          "enable_sunset_closing": "Enable Sunset Closing",
+          "sunset_offset_minutes": "Sunset offset (minutes)",
+          "sunrise_offset_minutes": "Sunrise offset (minutes)"
+        },
+        "data_description": {
+          "enable_sunset_closing": "Enable automatic closing around sunset using sun.sun.",
+          "sunset_offset_minutes": "Minutes relative to sunset. Negative = before sunset, positive = after sunset.",
+          "sunrise_offset_minutes": "Minutes relative to sunrise for reopening behavior. Negative = before sunrise, positive = after sunrise."
+        }
+      },
       "features": {
         "title": "Feature Toggles",
         "description": "Enable or disable specific automation rules.",
