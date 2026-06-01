@@ -349,24 +349,31 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input.pop(CONF_TEMP_SENSOR, None)
             
             # Check for unique ID collision if cover entity changed
+            old_cover = config_entry.data.get(CONF_COVER_ENTITY)
             new_cover = user_input.get(CONF_COVER_ENTITY)
-            if new_cover and new_cover != config_entry.data.get(CONF_COVER_ENTITY):
+            if new_cover and new_cover != old_cover:
                 await self.async_set_unique_id(new_cover)
                 self._abort_if_unique_id_configured()
             
             # Update only entity and window orientation data
+            updated_data = {
+                **config_entry.data,
+                CONF_COVER_ENTITY: user_input.get(CONF_COVER_ENTITY, config_entry.data.get(CONF_COVER_ENTITY)),
+                CONF_LUX_SENSOR: user_input.get(CONF_LUX_SENSOR, config_entry.data.get(CONF_LUX_SENSOR)),
+                CONF_TEMP_SENSOR: user_input.get(CONF_TEMP_SENSOR, config_entry.data.get(CONF_TEMP_SENSOR)),
+                CONF_WINDOW_AZIMUTH: user_input.get(CONF_WINDOW_AZIMUTH, config_entry.data.get(CONF_WINDOW_AZIMUTH)),
+                CONF_WINDOW_VIEW_LEFT: user_input.get(CONF_WINDOW_VIEW_LEFT, config_entry.data.get(CONF_WINDOW_VIEW_LEFT)),
+                CONF_WINDOW_VIEW_RIGHT: user_input.get(CONF_WINDOW_VIEW_RIGHT, config_entry.data.get(CONF_WINDOW_VIEW_RIGHT)),
+            }
+            update_kwargs: dict[str, Any] = {
+                "data_updates": updated_data,
+                "reason": "reconfigure_successful",
+            }
+            if new_cover and new_cover != old_cover:
+                update_kwargs["unique_id"] = new_cover
             return self.async_update_reload_and_abort(
                 config_entry,
-                data={
-                    **config_entry.data,
-                    CONF_COVER_ENTITY: user_input.get(CONF_COVER_ENTITY, config_entry.data.get(CONF_COVER_ENTITY)),
-                    CONF_LUX_SENSOR: user_input.get(CONF_LUX_SENSOR, config_entry.data.get(CONF_LUX_SENSOR)),
-                    CONF_TEMP_SENSOR: user_input.get(CONF_TEMP_SENSOR, config_entry.data.get(CONF_TEMP_SENSOR)),
-                    CONF_WINDOW_AZIMUTH: user_input.get(CONF_WINDOW_AZIMUTH, config_entry.data.get(CONF_WINDOW_AZIMUTH)),
-                    CONF_WINDOW_VIEW_LEFT: user_input.get(CONF_WINDOW_VIEW_LEFT, config_entry.data.get(CONF_WINDOW_VIEW_LEFT)),
-                    CONF_WINDOW_VIEW_RIGHT: user_input.get(CONF_WINDOW_VIEW_RIGHT, config_entry.data.get(CONF_WINDOW_VIEW_RIGHT)),
-                },
-                reason="reconfigure_successful",
+                **update_kwargs,
             )
         
         defaults = config_entry.data
@@ -405,10 +412,33 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
         """Return merged defaults with persisted values taking precedence."""
         try:
             entry = self._entry()
+            merged: dict[str, Any] = dict(DEFAULTS)
+
+            if isinstance(entry.data, dict):
+                merged.update(entry.data)
+            else:
+                _LOGGER.warning(
+                    "Config entry %s has non-dict data (%s); ignoring malformed data",
+                    getattr(entry, "entry_id", "unknown"),
+                    type(entry.data).__name__,
+                )
+
+            if isinstance(entry.options, dict):
+                merged.update(entry.options)
+            else:
+                _LOGGER.warning(
+                    "Config entry %s has non-dict options (%s); ignoring malformed options",
+                    getattr(entry, "entry_id", "unknown"),
+                    type(entry.options).__name__,
+                )
+
+            return _sanitize_option_defaults(merged)
         except vol.Invalid:
             _LOGGER.exception("Unable to resolve config entry; falling back to hard defaults")
             return dict(DEFAULTS)
-        return _sanitize_option_defaults({**DEFAULTS, **entry.data, **entry.options})
+        except Exception:
+            _LOGGER.exception("Failed to build option defaults; falling back to hard defaults")
+            return dict(DEFAULTS)
 
     def _show_schema_form(
         self,

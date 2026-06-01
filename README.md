@@ -165,6 +165,14 @@ logger:
    - `sensor.<entry>_error_count`
 3. Run `ha_blinds.evaluate_now` to test immediate response.
 4. Verify configured entities exist and have valid numeric states.
+5. Use `docs/reconfigure_e2e_runbook.md` for full install -> reconfigure -> verification flow.
+6. If you see recorder migration collisions, run:
+
+```bash
+python3 /config/custom_components/ha_blinds/tools/recorder_collision_helper.py \
+  --log-file /config/home-assistant.log \
+  --entity-registry /config/.storage/core.entity_registry
+```
 
 ## Limitations and Notes
 
