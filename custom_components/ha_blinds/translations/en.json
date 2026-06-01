@@ -36,7 +36,18 @@
           "temp_threshold": "Temperature threshold (°C)",
           "winter_privacy_hour": "Winter privacy hour",
           "summer_privacy_hour": "Summer privacy hour",
-          "manual_override_minutes": "Manual override (minutes)"
+          "privacy_duration_minutes": "Privacy duration (minutes)",
+          "manual_override_minutes": "Manual override (minutes)",
+          "night_close_position": "Night close position",
+          "zigbee_delay_seconds": "Zigbee delay (seconds)",
+          "enable_sunset_closing": "Enable sunset closing",
+          "sunset_offset_minutes": "Sunset offset (minutes)",
+          "sunrise_offset_minutes": "Sunrise offset (minutes)",
+          "enable_privacy_hour": "Privacy hour",
+          "enable_high_lux_protection": "High lux protection",
+          "enable_heat_protection": "Heat protection",
+          "enable_low_lux_reopen": "Low lux reopen",
+          "enable_sun_elevation_tracking": "Sun elevation tracking"
         },
         "data_description": {
           "lux_close_summer": "Lux threshold to close blinds in summer. Higher = close only in bright sun. Recommended: 35000.",
@@ -52,7 +63,18 @@
           "temp_threshold": "Temperature above which heat protection activates if an indoor temp sensor is provided. Recommended: 24.0.",
           "winter_privacy_hour": "Hour to close blinds for privacy in winter (0-23). Recommended: 16.",
           "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19.",
-          "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45."
+          "privacy_duration_minutes": "How long privacy mode remains active after privacy hour starts. Recommended: 480.",
+          "manual_override_minutes": "How long to disable auto-control after manual intervention. Recommended: 45.",
+          "night_close_position": "Night close target: 0 (Closed) or 100 (Privacy Mode).",
+          "zigbee_delay_seconds": "Optional delay before each cover command to reduce Zigbee traffic.",
+          "enable_sunset_closing": "Enable automatic closing at sunset (with configured offset).",
+          "sunset_offset_minutes": "Minutes relative to sunset. Negative = before, positive = after.",
+          "sunrise_offset_minutes": "Minutes relative to sunrise. Negative = before, positive = after.",
+          "enable_privacy_hour": "Enable configured privacy hour closing behavior.",
+          "enable_high_lux_protection": "Enable direct sun + high lux closing rule.",
+          "enable_heat_protection": "Enable summer heat protection rule.",
+          "enable_low_lux_reopen": "Enable reopen rule when lux stays low.",
+          "enable_sun_elevation_tracking": "Enable baseline sun elevation tracking rule."
         }
       },
       "reconfigure": {
@@ -84,16 +106,11 @@
         "title": "HA Blinds Options",
         "description": "Adjust thresholds and timing without re-adding integration. For entity changes, use Reconfigure from the integration menu.",
         "menu_options": {
-          "check_state": "📊 Check Current State & Evaluate",
           "thresholds": "🎚️ Adjust Thresholds (Lux, Heat, Privacy)",
           "timing": "⏱️ Adjust Timing (Tick, Debounce, Step)",
           "sunset": "🌅 Sunset/Sunrise Settings",
           "features": "⚙️ Enable/Disable Features"
         }
-      },
-      "check_state": {
-        "title": "Check Current State",
-        "description": "View current state of all automation entities and trigger evaluation.\n\n{state_info}\n\nClick **SUBMIT** to trigger immediate evaluation and return to menu."
       },
       "thresholds": {
         "title": "Threshold Settings",
@@ -108,7 +125,8 @@
           "heat_position": "Heat position (%)",
           "temp_threshold": "Temperature threshold (°C)",
           "winter_privacy_hour": "Winter privacy hour",
-          "summer_privacy_hour": "Summer privacy hour"
+          "summer_privacy_hour": "Summer privacy hour",
+          "night_close_position": "Night close position"
         },
         "data_description": {
           "lux_close_summer": "Lux threshold to close blinds in summer. Higher = close only in bright sun. Recommended: 35000.",
@@ -120,7 +138,8 @@
           "heat_position": "Blind position during heat protection (0-100). Recommended: 20.",
           "temp_threshold": "Temperature above which heat protection activates. Recommended: 24.0.",
           "winter_privacy_hour": "Hour to close blinds for privacy in winter (0-23). Recommended: 16.",
-          "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19."
+          "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19.",
+          "night_close_position": "Night close target: 0 (Closed) or 100 (Privacy Mode)."
         }
       },
       "timing": {

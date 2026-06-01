@@ -378,7 +378,13 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        return HaBlindsOptionsFlow()
+        # HA 2026.x requires config_entry in the options flow constructor.
+        try:
+            return HaBlindsOptionsFlow(config_entry)
+        except TypeError:
+            flow = HaBlindsOptionsFlow()
+            flow.config_entry = config_entry
+            return flow
 
 
 class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):

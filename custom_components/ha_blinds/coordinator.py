@@ -143,8 +143,14 @@ class HaBlindsController:
             sun_state = self.hass.states.get("sun.sun")
             if cover_state is None or sun_state is None:
                 self._runtime.error_count += 1
-                _LOGGER.warning("Missing state: cover=%s, sun=%s (error #%d)",
-                              cover_state is not None, sun_state is not None, self._runtime.error_count)
+                log_fn = _LOGGER.debug if self._runtime.error_count <= 3 else _LOGGER.warning
+                log_fn(
+                    "Missing state: cover_present=%s (%s), sun_present=%s (error #%d)",
+                    cover_state is not None,
+                    cover_entity,
+                    sun_state is not None,
+                    self._runtime.error_count,
+                )
                 if self._runtime.error_count > 10:
                     _LOGGER.error("Too many errors, check if cover and sun entities exist")
                 return

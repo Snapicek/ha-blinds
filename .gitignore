@@ -63,3 +63,7 @@ venv.bak/
 Thumbs.db
 .DS_Store
 
+#tests
+tests/
+tools/
+
