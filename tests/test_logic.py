@@ -36,14 +36,19 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 220, 5, 10000, 21.0, 75, paused=False)
         )
         self.assertTrue(res.should_move)
-        self.assertEqual(res.target_position, 100)  # 0% or 100% = zavřeno
+        self.assertEqual(res.target_position, 0)  # night_close_position=0 in test config
         self.assertEqual(res.reason, "privacy_hour")
 
     def test_high_lux_debounce_closes(self) -> None:
+        # Debounce state is tracked by the coordinator and passed via DecisionInputs.
+        # Simulate coordinator having observed high lux for debounce_minutes already.
         start = datetime(2026, 7, 1, 13, 0, 0)
-        self.engine.evaluate(DecisionInputs(start, 230, 45, 40000, 26.0, 75, paused=False))
         res = self.engine.evaluate(
-            DecisionInputs(start + timedelta(minutes=5), 230, 45, 40000, 26.0, 75, paused=False)
+            DecisionInputs(
+                start + timedelta(minutes=5), 230, 45, 40000, 26.0, 75,
+                paused=False,
+                high_lux_since=start,
+            )
         )
         self.assertEqual(res.target_position, 0)
         self.assertEqual(res.reason, "direct_sun_high_lux")
@@ -64,23 +69,25 @@ class TestDecisionEngine(unittest.TestCase):
         self.assertEqual(res.reason, "paused")
 
     def test_sunset_closes_blinds(self) -> None:
-        """Test that sunset (sun_elevation < 0) closes blinds to 0% or 100%."""
-        now = datetime(2026, 7, 1, 19, 30, 0)  # Evening after sunset
+        """Test that negative sun elevation triggers night_close."""
+        # Use 03:00 so privacy_hour (summer threshold=19) is not yet active.
+        now = datetime(2026, 7, 1, 3, 0, 0)
         res = self.engine.evaluate(
             DecisionInputs(now, 230, -5, 5000, 22.0, 75, paused=False)
         )
         self.assertTrue(res.should_move)
-        self.assertEqual(res.target_position, 100)  # Closed (night)
+        self.assertEqual(res.target_position, 0)  # night_close_position=0 in test config
         self.assertEqual(res.reason, "night_close")
 
     def test_night_stays_closed(self) -> None:
-        """Test that during night, blinds stay closed (0% or 100%)."""
-        now = datetime(2026, 7, 1, 22, 0, 0)  # Night time
+        """Test that blinds already at night_close_position do not move."""
+        # Use 03:00 so privacy_hour (summer threshold=19) is not active.
+        now = datetime(2026, 7, 1, 3, 0, 0)
         res = self.engine.evaluate(
-            DecisionInputs(now, 180, -20, 100, 18.0, 100, paused=False)
+            DecisionInputs(now, 180, -20, 100, 18.0, 0, paused=False)
         )
-        self.assertFalse(res.should_move)  # Already at target
-        self.assertEqual(res.target_position, 100)  # Closed
+        self.assertFalse(res.should_move)  # Already at night_close_position=0
+        self.assertEqual(res.target_position, 0)
         self.assertEqual(res.reason, "night_close")
     
     def test_low_sun_closes(self) -> None:
@@ -94,12 +101,14 @@ class TestDecisionEngine(unittest.TestCase):
         self.assertEqual(res.reason, "sun_elevation_tracking")
     
     def test_high_sun_opens(self) -> None:
-        """Test that high elevation sun (overhead) opens blinds."""
-        now = datetime(2026, 7, 1, 12, 0, 0)  # Midday
+        """Test that high elevation sun (overhead) opens blinds via sun tracking."""
+        # Use 09:00 (before heat_start_hour=10) and temp below threshold so
+        # heat protection does not intercept before sun_elevation_tracking.
+        now = datetime(2026, 7, 1, 9, 0, 0)
         res = self.engine.evaluate(
-            DecisionInputs(now, 230, 70, 30000, 28.0, 50, paused=False)
+            DecisionInputs(now, 230, 70, 30000, 18.0, 50, paused=False)
         )
-        # Sun at 70° elevation = from above = open to 75%
+        # Sun at 70° elevation = overhead = open to 75%
         self.assertEqual(res.target_position, 75)
         self.assertEqual(res.reason, "sun_elevation_tracking")
 
