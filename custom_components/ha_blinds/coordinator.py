@@ -18,6 +18,7 @@ from homeassistant.helpers.storage import Store
 _STORAGE_VERSION = 1
 
 from .const import (
+    CONF_COVER_ENTITIES,
     CONF_COVER_ENTITY,
     CONF_DEBOUNCE_MINUTES,
     CONF_ENABLE_HEAT_PROTECTION,
@@ -79,7 +80,7 @@ class HaBlindsController:
         self._runtime = _RuntimeState()
         self._unsub_interval = None
         self._unsub_cover_listener = None
-        self._last_command_context: Context | None = None
+        self._last_command_context_ids: set[str] = set()
         self._listener_armed = False
         self._engine = DecisionEngine(self._decision_config())
         self._device_id = None
@@ -95,9 +96,8 @@ class HaBlindsController:
             self._async_handle_tick,
             timedelta(minutes=max(1, tick)),
         )
-        cover_entity = str(self._cfg(CONF_COVER_ENTITY))
         self._unsub_cover_listener = async_track_state_change_event(
-            self.hass, [cover_entity], self._on_cover_state_changed
+            self.hass, self._all_cover_entities(), self._on_cover_state_changed
         )
         await self.async_evaluate_now()
         self._listener_armed = True
@@ -134,9 +134,8 @@ class HaBlindsController:
         if self._runtime.paused_until and now < self._runtime.paused_until:
             return
 
-        last_ctx = self._last_command_context
         event_ctx = new_state.context
-        if last_ctx is not None and event_ctx.parent_id == last_ctx.id:
+        if event_ctx.parent_id in self._last_command_context_ids or event_ctx.id in self._last_command_context_ids:
             return
 
         _LOGGER.info(
@@ -178,6 +177,18 @@ class HaBlindsController:
         _LOGGER.info("HA Blinds resumed on entry %s", self.entry.entry_id)
         await self._async_save_pause_state()
         self._update_state_attributes()
+
+    def _all_cover_entities(self) -> list[str]:
+        """Return primary cover followed by any additional covers, deduplicated."""
+        primary = str(self._cfg(CONF_COVER_ENTITY))
+        extras = list(self._cfg(CONF_COVER_ENTITIES) or [])
+        seen = {primary}
+        result = [primary]
+        for entity in extras:
+            if entity and entity not in seen:
+                seen.add(entity)
+                result.append(entity)
+        return result
 
     def _store(self) -> Store:
         return Store(self.hass, _STORAGE_VERSION, f"{DOMAIN}_pause_{self.entry.entry_id}")
@@ -320,30 +331,28 @@ class HaBlindsController:
             else:
                 target = max(target, current_position - step)
 
-            # Apply Zigbee delay to avoid overwhelming network
             zigbee_delay = self._cfg_float(CONF_ZIGBEE_DELAY_SECONDS)
-            if zigbee_delay > 0:
-                await asyncio.sleep(zigbee_delay)
-
-            ctx = Context()
-            self._last_command_context = ctx
-            await self.hass.services.async_call(
-                "cover",
-                "set_cover_position",
-                {
-                    "entity_id": cover_entity,
-                    "position": target,
-                },
-                context=ctx,
-                blocking=False,
-            )
+            self._last_command_context_ids.clear()
+            for i, entity in enumerate(self._all_cover_entities()):
+                if i > 0 and zigbee_delay > 0:
+                    await asyncio.sleep(zigbee_delay)
+                ctx = Context()
+                self._last_command_context_ids.add(ctx.id)
+                await self.hass.services.async_call(
+                    "cover",
+                    "set_cover_position",
+                    {"entity_id": entity, "position": target},
+                    context=ctx,
+                    blocking=False,
+                )
             self._runtime.last_target = target
             _LOGGER.debug(
-                "HA Blinds entry=%s reason=%s current=%s target=%s sun_at_window=%s lux=%s temp=%s",
+                "HA Blinds entry=%s reason=%s current=%s target=%s covers=%s sun_at_window=%s lux=%s temp=%s",
                 self.entry.entry_id,
                 result.reason,
                 current_position,
                 target,
+                self._all_cover_entities(),
                 result.sun_at_window,
                 lux,
                 temperature,
@@ -522,6 +531,7 @@ class HaBlindsController:
         return {
             "entry_id": self.entry.entry_id,
             "cover_entity": str(self._cfg(CONF_COVER_ENTITY)),
+            "cover_entities": self._all_cover_entities(),
             "last_reason": self._runtime.last_reason,
             "last_target": self._runtime.last_target,
             "paused_until": self._runtime.paused_until.isoformat() if self._runtime.paused_until else None,

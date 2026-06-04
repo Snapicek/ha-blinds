@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from .const import (
     ATTR_ENTRY_ID,
     ATTR_MINUTES,
+    CONF_COVER_ENTITIES,
     DOMAIN,
     SERVICE_EVALUATE_NOW,
     SERVICE_PAUSE,
@@ -21,6 +22,18 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor", "switch", "button"]
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate entry to current version."""
+    if entry.version == 1:
+        hass.config_entries.async_update_entry(
+            entry,
+            data={**entry.data, CONF_COVER_ENTITIES: []},
+            version=2,
+        )
+        _LOGGER.info("Migrated HA Blinds entry %s from v1 to v2", entry.entry_id)
+    return True
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:

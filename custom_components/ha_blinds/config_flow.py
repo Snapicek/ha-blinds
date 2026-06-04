@@ -11,6 +11,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector as sel
 
 from .const import (
+    CONF_COVER_ENTITIES,
     CONF_COVER_ENTITY,
     CONF_DEBOUNCE_MINUTES,
     CONF_ENABLE_HEAT_PROTECTION,
@@ -229,6 +230,9 @@ def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
         vol.Required(CONF_COVER_ENTITY): sel.EntitySelector(
             sel.EntitySelectorConfig(domain="cover")
         ),
+        vol.Optional(CONF_COVER_ENTITIES, default=[]): sel.EntitySelector(
+            sel.EntitySelectorConfig(domain="cover", multiple=True)
+        ),
         vol.Required(CONF_LUX_SENSOR): sel.EntitySelector(
             sel.EntitySelectorConfig(domain="sensor", device_class="illuminance")
         ),
@@ -251,6 +255,8 @@ def _entry_schema(defaults: dict[str, Any]) -> vol.Schema:
 
     if CONF_COVER_ENTITY in defaults:
         schema[vol.Required(CONF_COVER_ENTITY, default=defaults[CONF_COVER_ENTITY])] = schema.pop(vol.Required(CONF_COVER_ENTITY))
+    if CONF_COVER_ENTITIES in defaults:
+        schema[vol.Optional(CONF_COVER_ENTITIES, default=defaults[CONF_COVER_ENTITIES])] = schema.pop(vol.Optional(CONF_COVER_ENTITIES, default=[]))
     if CONF_LUX_SENSOR in defaults:
         schema[vol.Required(CONF_LUX_SENSOR, default=defaults[CONF_LUX_SENSOR])] = schema.pop(vol.Required(CONF_LUX_SENSOR))
     if CONF_TEMP_SENSOR in defaults:
@@ -303,7 +309,7 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
 class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HA Blinds."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
@@ -359,6 +365,7 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             updated_data = {
                 **config_entry.data,
                 CONF_COVER_ENTITY: user_input.get(CONF_COVER_ENTITY, config_entry.data.get(CONF_COVER_ENTITY)),
+                CONF_COVER_ENTITIES: user_input.get(CONF_COVER_ENTITIES, config_entry.data.get(CONF_COVER_ENTITIES, [])),
                 CONF_LUX_SENSOR: user_input.get(CONF_LUX_SENSOR, config_entry.data.get(CONF_LUX_SENSOR)),
                 CONF_TEMP_SENSOR: user_input.get(CONF_TEMP_SENSOR, config_entry.data.get(CONF_TEMP_SENSOR)),
                 CONF_WINDOW_AZIMUTH: user_input.get(CONF_WINDOW_AZIMUTH, config_entry.data.get(CONF_WINDOW_AZIMUTH)),

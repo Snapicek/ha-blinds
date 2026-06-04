@@ -5,6 +5,7 @@ from __future__ import annotations
 DOMAIN = "ha_blinds"
 
 CONF_COVER_ENTITY = "cover_entity"
+CONF_COVER_ENTITIES = "cover_entities"  # optional additional covers in the same group
 CONF_LUX_SENSOR = "lux_sensor"
 CONF_TEMP_SENSOR = "temp_sensor"
 CONF_WINDOW_AZIMUTH = "window_azimuth"
