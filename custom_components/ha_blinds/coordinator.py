@@ -9,9 +9,9 @@ import logging
 from typing import Any, Callable
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant, callback
 from homeassistant.util import dt as dt_util
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 from homeassistant.helpers.dispatcher import async_dispatcher_send, async_dispatcher_connect
 
 from .const import (
@@ -75,6 +75,9 @@ class HaBlindsController:
         self.entry = entry
         self._runtime = _RuntimeState()
         self._unsub_interval = None
+        self._unsub_cover_listener = None
+        self._last_command_context: Context | None = None
+        self._listener_armed = False
         self._engine = DecisionEngine(self._decision_config())
         self._device_id = None
         self._signal = f"{DOMAIN}_{self.entry.entry_id}_update"
@@ -88,7 +91,12 @@ class HaBlindsController:
             self._async_handle_tick,
             timedelta(minutes=max(1, tick)),
         )
+        cover_entity = str(self._cfg(CONF_COVER_ENTITY))
+        self._unsub_cover_listener = async_track_state_change_event(
+            self.hass, [cover_entity], self._on_cover_state_changed
+        )
         await self.async_evaluate_now()
+        self._listener_armed = True
         _LOGGER.info("HA Blinds controller started for %s", self.entry.entry_id)
 
     async def async_stop(self) -> None:
@@ -96,7 +104,45 @@ class HaBlindsController:
         if self._unsub_interval is not None:
             self._unsub_interval()
             self._unsub_interval = None
+        if self._unsub_cover_listener is not None:
+            self._unsub_cover_listener()
+            self._unsub_cover_listener = None
+        self._listener_armed = False
         _LOGGER.info("HA Blinds controller stopped for %s", self.entry.entry_id)
+
+    @callback
+    def _on_cover_state_changed(self, event) -> None:
+        """Detect manual cover movement and trigger a pause."""
+        if not self._listener_armed:
+            return
+
+        new_state = event.data.get("new_state")
+        old_state = event.data.get("old_state")
+        if new_state is None or new_state.state in ("unknown", "unavailable"):
+            return
+
+        new_pos = new_state.attributes.get("current_position")
+        old_pos = old_state.attributes.get("current_position") if old_state else None
+        if new_pos is None or new_pos == old_pos:
+            return
+
+        now = dt_util.now()
+        if self._runtime.paused_until and now < self._runtime.paused_until:
+            return
+
+        last_ctx = self._last_command_context
+        event_ctx = new_state.context
+        if last_ctx is not None and event_ctx.parent_id == last_ctx.id:
+            return
+
+        _LOGGER.info(
+            "Manual cover movement detected on %s (position %s→%s), pausing automation for %s minutes",
+            self._cfg(CONF_COVER_ENTITY),
+            old_pos,
+            new_pos,
+            self._cfg_int(CONF_MANUAL_OVERRIDE_MINUTES),
+        )
+        self.hass.async_create_task(self.async_pause())
 
     def _setup_device(self) -> None:
         """Create device entry in Home Assistant device registry."""
@@ -253,6 +299,8 @@ class HaBlindsController:
             if zigbee_delay > 0:
                 await asyncio.sleep(zigbee_delay)
 
+            ctx = Context()
+            self._last_command_context = ctx
             await self.hass.services.async_call(
                 "cover",
                 "set_cover_position",
@@ -260,6 +308,7 @@ class HaBlindsController:
                     "entity_id": cover_entity,
                     "position": target,
                 },
+                context=ctx,
                 blocking=False,
             )
             self._runtime.last_target = target
