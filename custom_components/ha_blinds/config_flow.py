@@ -622,11 +622,11 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
             vol.Required(
                 CONF_SUNSET_OFFSET_MINUTES,
                 default=_coerce_int_default(defaults.get(CONF_SUNSET_OFFSET_MINUTES), int(DEFAULTS[CONF_SUNSET_OFFSET_MINUTES])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+            ): sel.NumberSelector(sel.NumberSelectorConfig(min=-120, max=120, step=1, mode=sel.NumberSelectorMode.BOX)),
             vol.Required(
                 CONF_SUNRISE_OFFSET_MINUTES,
                 default=_coerce_int_default(defaults.get(CONF_SUNRISE_OFFSET_MINUTES), int(DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+            ): sel.NumberSelector(sel.NumberSelectorConfig(min=-120, max=120, step=1, mode=sel.NumberSelectorMode.BOX)),
         }
         return self._show_schema_form(
             step_id="sunset",
