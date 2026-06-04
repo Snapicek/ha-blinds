@@ -407,25 +407,8 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
         try:
             entry = self._entry()
             merged: dict[str, Any] = dict(DEFAULTS)
-
-            if isinstance(entry.data, dict):
-                merged.update(entry.data)
-            else:
-                _LOGGER.warning(
-                    "Config entry %s has non-dict data (%s); ignoring malformed data",
-                    getattr(entry, "entry_id", "unknown"),
-                    type(entry.data).__name__,
-                )
-
-            if isinstance(entry.options, dict):
-                merged.update(entry.options)
-            else:
-                _LOGGER.warning(
-                    "Config entry %s has non-dict options (%s); ignoring malformed options",
-                    getattr(entry, "entry_id", "unknown"),
-                    type(entry.options).__name__,
-                )
-
+            merged.update(dict(entry.data))
+            merged.update(dict(entry.options))
             return _sanitize_option_defaults(merged)
         except vol.Invalid:
             _LOGGER.exception("Unable to resolve config entry; falling back to hard defaults")
@@ -469,15 +452,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
 
     def _current_options(self) -> dict[str, Any]:
         """Return persisted options as a dict, tolerating malformed storage."""
-        entry = self._entry()
-        if isinstance(entry.options, dict):
-            return dict(entry.options)
-        _LOGGER.warning(
-            "Config entry %s has non-dict options (%s) while saving; starting from empty options",
-            getattr(entry, "entry_id", "unknown"),
-            type(entry.options).__name__,
-        )
-        return {}
+        return dict(self._entry().options)
 
     def _save_options_entry(self, user_input: dict[str, Any]):
         """Merge and persist updated options."""
