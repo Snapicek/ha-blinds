@@ -293,15 +293,15 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             ): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
             vol.Required(CONF_ZIGBEE_DELAY_SECONDS, default=defaults[CONF_ZIGBEE_DELAY_SECONDS]): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
             # Sunset/Sunrise feature - uses sun.sun entity
-            vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=defaults[CONF_ENABLE_SUNSET_CLOSING]): bool,
-            vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=defaults[CONF_SUNSET_OFFSET_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
-            vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=defaults[CONF_SUNRISE_OFFSET_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=-120, max=120)),
+            vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=defaults[CONF_ENABLE_SUNSET_CLOSING]): sel.BooleanSelector(),
+            vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=defaults[CONF_SUNSET_OFFSET_MINUTES]): sel.NumberSelector(sel.NumberSelectorConfig(min=-120, max=120, step=1, mode=sel.NumberSelectorMode.BOX)),
+            vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=defaults[CONF_SUNRISE_OFFSET_MINUTES]): sel.NumberSelector(sel.NumberSelectorConfig(min=-120, max=120, step=1, mode=sel.NumberSelectorMode.BOX)),
             # Feature toggles
-            vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=defaults[CONF_ENABLE_PRIVACY_HOUR]): bool,
-            vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=defaults[CONF_ENABLE_HIGH_LUX_PROTECTION]): bool,
-            vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=defaults[CONF_ENABLE_HEAT_PROTECTION]): bool,
-            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=defaults[CONF_ENABLE_LOW_LUX_REOPEN]): bool,
-            vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=defaults[CONF_ENABLE_SUN_ELEVATION_TRACKING]): bool,
+            vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=defaults[CONF_ENABLE_PRIVACY_HOUR]): sel.BooleanSelector(),
+            vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=defaults[CONF_ENABLE_HIGH_LUX_PROTECTION]): sel.BooleanSelector(),
+            vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=defaults[CONF_ENABLE_HEAT_PROTECTION]): sel.BooleanSelector(),
+            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=defaults[CONF_ENABLE_LOW_LUX_REOPEN]): sel.BooleanSelector(),
+            vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=defaults[CONF_ENABLE_SUN_ELEVATION_TRACKING]): sel.BooleanSelector(),
         }
     )
 
@@ -392,28 +392,15 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        # HA 2026.x requires config_entry in the options flow constructor.
-        try:
-            return HaBlindsOptionsFlow(config_entry)
-        except TypeError:
-            flow = HaBlindsOptionsFlow()
-            flow.config_entry = config_entry
-            return flow
+        return HaBlindsOptionsFlow()
 
 
-class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
+class HaBlindsOptionsFlow(config_entries.OptionsFlow):
     """Options flow for HA Blinds."""
-
 
     def _entry(self) -> config_entries.ConfigEntry:
         """Return active config entry for this options flow."""
-        try:
-            entry = self.config_entry
-        except AttributeError as err:
-            raise vol.Invalid("Config entry unavailable for options flow") from err
-        if entry is None:
-            raise vol.Invalid("Config entry unavailable for options flow")
-        return entry
+        return self.config_entry
 
     def _defaults(self) -> dict[str, Any]:
         """Return merged defaults with persisted values taking precedence."""
@@ -625,7 +612,7 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                     defaults.get(CONF_ENABLE_SUNSET_CLOSING),
                     bool(DEFAULTS[CONF_ENABLE_SUNSET_CLOSING]),
                 ),
-            ): bool,
+            ): sel.BooleanSelector(),
             vol.Required(
                 CONF_SUNSET_OFFSET_MINUTES,
                 default=_coerce_int_default(defaults.get(CONF_SUNSET_OFFSET_MINUTES), int(DEFAULTS[CONF_SUNSET_OFFSET_MINUTES])),
@@ -659,29 +646,29 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
             vol.Required(
                 CONF_ENABLE_PRIVACY_HOUR,
                 default=_coerce_bool_default(defaults.get(CONF_ENABLE_PRIVACY_HOUR), bool(DEFAULTS[CONF_ENABLE_PRIVACY_HOUR])),
-            ): bool,
+            ): sel.BooleanSelector(),
             vol.Required(
                 CONF_ENABLE_HIGH_LUX_PROTECTION,
                 default=_coerce_bool_default(
                     defaults.get(CONF_ENABLE_HIGH_LUX_PROTECTION),
                     bool(DEFAULTS[CONF_ENABLE_HIGH_LUX_PROTECTION]),
                 ),
-            ): bool,
+            ): sel.BooleanSelector(),
             vol.Required(
                 CONF_ENABLE_HEAT_PROTECTION,
                 default=_coerce_bool_default(defaults.get(CONF_ENABLE_HEAT_PROTECTION), bool(DEFAULTS[CONF_ENABLE_HEAT_PROTECTION])),
-            ): bool,
+            ): sel.BooleanSelector(),
             vol.Required(
                 CONF_ENABLE_LOW_LUX_REOPEN,
                 default=_coerce_bool_default(defaults.get(CONF_ENABLE_LOW_LUX_REOPEN), bool(DEFAULTS[CONF_ENABLE_LOW_LUX_REOPEN])),
-            ): bool,
+            ): sel.BooleanSelector(),
             vol.Required(
                 CONF_ENABLE_SUN_ELEVATION_TRACKING,
                 default=_coerce_bool_default(
                     defaults.get(CONF_ENABLE_SUN_ELEVATION_TRACKING),
                     bool(DEFAULTS[CONF_ENABLE_SUN_ELEVATION_TRACKING]),
                 ),
-            ): bool,
+            ): sel.BooleanSelector(),
         }
         return self._show_schema_form(
             step_id="features",
