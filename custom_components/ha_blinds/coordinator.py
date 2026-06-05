@@ -178,6 +178,27 @@ class HaBlindsController:
         await self._async_save_pause_state()
         self._update_state_attributes()
 
+    async def async_set_position(self, position: int) -> None:
+        """Set all covers to a specific position and pause automation."""
+        await self.async_pause()
+        zigbee_delay = self._cfg_float(CONF_ZIGBEE_DELAY_SECONDS)
+        self._last_command_context_ids.clear()
+        for i, entity in enumerate(self._all_cover_entities()):
+            if i > 0 and zigbee_delay > 0:
+                await asyncio.sleep(zigbee_delay)
+            ctx = Context()
+            self._last_command_context_ids.add(ctx.id)
+            await self.hass.services.async_call(
+                "cover",
+                "set_cover_position",
+                {"entity_id": entity, "position": position},
+                context=ctx,
+                blocking=False,
+            )
+        self._runtime.last_target = position
+        _LOGGER.info("HA Blinds entry=%s manually set to position=%s%%", self.entry.entry_id, position)
+        self._update_state_attributes()
+
     def _all_cover_entities(self) -> list[str]:
         """Return primary cover followed by any additional covers, deduplicated."""
         primary = str(self._cfg(CONF_COVER_ENTITY))
