@@ -518,7 +518,7 @@ class HaBlindsController:
 
     def _get_sunset_time(self, now: datetime) -> datetime | None:
         """Get sunset time with offset applied."""
-        sunset_time = self._get_time_attribute("next_sunset")
+        sunset_time = self._get_time_attribute("next_setting")
 
         if sunset_time is None:
             return None
@@ -542,7 +542,7 @@ class HaBlindsController:
         if sunrise_time is None:
             return None
 
-        sunset_time = self._get_time_attribute("next_sunset")
+        sunset_time = self._get_time_attribute("next_setting")
         if sunset_time is not None and sunset_time < sunrise_time:
             # next sunset comes before next sunrise → we are in daytime
             return None
