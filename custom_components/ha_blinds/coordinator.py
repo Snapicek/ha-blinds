@@ -509,10 +509,21 @@ class HaBlindsController:
         return sunset_time
 
     def _get_sunrise_time(self, now: datetime) -> datetime | None:
-        """Get sunrise time with offset applied."""
-        sunrise_time = self._get_time_attribute("next_rising")
+        """Get sunrise time with offset applied. Returns None during daytime.
 
+        sun.sun always exposes the *next* rising, which after today's sunrise
+        has passed becomes tomorrow's value. Comparing next_setting vs next_rising
+        tells us whether we are currently in daytime (sunset comes first) or
+        nighttime (sunrise comes first). During daytime the pre-sunrise rule
+        must not fire, so we return None.
+        """
+        sunrise_time = self._get_time_attribute("next_rising")
         if sunrise_time is None:
+            return None
+
+        sunset_time = self._get_time_attribute("next_sunset")
+        if sunset_time is not None and sunset_time < sunrise_time:
+            # next sunset comes before next sunrise → we are in daytime
             return None
 
         offset_minutes = self._cfg_int(CONF_SUNRISE_OFFSET_MINUTES)
