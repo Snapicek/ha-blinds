@@ -139,8 +139,8 @@ class DecisionEngine:
             if self._debounced(inputs.low_lux_since, inputs.now):
                 return self._result(inputs.current_position, 75, "low_lux_reopen", sun_at_window)
 
-        # Sun elevation tracking (if enabled)
-        if self.config.enable_sun_elevation_tracking:
+        # Sun elevation tracking (if enabled, and only when sun shines through the window)
+        if self.config.enable_sun_elevation_tracking and sun_at_window:
             target = self._base_sun_target(inputs.sun_elevation)
             if inputs.temperature is not None and not is_winter and sun_at_window:
                 if inputs.temperature >= self.config.temp_threshold:
@@ -149,7 +149,7 @@ class DecisionEngine:
 
             return self._result(inputs.current_position, target, "sun_elevation_tracking", sun_at_window)
         
-        # If sun tracking is disabled, maintain current position
+        # Sun not at window, or tracking disabled — maintain current position
         return DecisionResult(False, inputs.current_position, "sun_tracking_disabled", sun_at_window)
 
     def _result(

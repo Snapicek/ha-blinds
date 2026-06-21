@@ -100,6 +100,17 @@ class TestDecisionEngine(unittest.TestCase):
         self.assertEqual(res.target_position, 0)
         self.assertEqual(res.reason, "sun_elevation_tracking")
     
+    def test_low_sun_not_at_window_does_not_close(self) -> None:
+        """Sun below 10° but outside window azimuth must not trigger sun_elevation_tracking close."""
+        # Window 240° ±60° → visible range 180–300°. Azimuth 306° is outside.
+        # Use 18:30 (before summer_privacy_hour=19) so privacy_hour doesn't interfere.
+        now = datetime(2026, 6, 21, 18, 30, 0)
+        res = self.engine.evaluate(
+            DecisionInputs(now, 306, 1, 532, 22.0, 75, paused=False)
+        )
+        self.assertNotEqual(res.reason, "sun_elevation_tracking")
+        self.assertNotEqual(res.target_position, 0)
+
     def test_high_sun_opens(self) -> None:
         """Test that high elevation sun (overhead) opens blinds via sun tracking."""
         # Use 09:00 (before heat_start_hour=10) and temp below threshold so
