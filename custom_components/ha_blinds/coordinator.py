@@ -300,9 +300,9 @@ class HaBlindsController:
 
             # Track when privacy hour was entered
             is_winter = now.month in (11, 12, 1, 2, 3)
-            enable_privacy_hour = bool(self._cfg(CONF_ENABLE_PRIVACY_HOUR))
-            enable_high_lux = bool(self._cfg(CONF_ENABLE_HIGH_LUX_PROTECTION))
-            enable_low_lux = bool(self._cfg(CONF_ENABLE_LOW_LUX_REOPEN))
+            enable_privacy_hour = self._cfg_bool(CONF_ENABLE_PRIVACY_HOUR)
+            enable_high_lux = self._cfg_bool(CONF_ENABLE_HIGH_LUX_PROTECTION)
+            enable_low_lux = self._cfg_bool(CONF_ENABLE_LOW_LUX_REOPEN)
 
             # If privacy hour is disabled, clear the tracking
             if not enable_privacy_hour:
