@@ -16,7 +16,6 @@ from .const import (
     CONF_DEBOUNCE_MINUTES,
     CONF_ENABLE_HEAT_PROTECTION,
     CONF_ENABLE_HIGH_LUX_PROTECTION,
-    CONF_ENABLE_LOW_LUX_REOPEN,
     CONF_ENABLE_PRIVACY_HOUR,
     CONF_ENABLE_SUN_ELEVATION_TRACKING,
     CONF_ENABLE_SUNSET_CLOSING,
@@ -25,8 +24,6 @@ from .const import (
     CONF_HEAT_START_HOUR,
     CONF_LUX_CLOSE_SUMMER,
     CONF_LUX_CLOSE_WINTER,
-    CONF_LUX_OPEN_SUMMER,
-    CONF_LUX_OPEN_WINTER,
     CONF_LUX_SENSOR,
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
@@ -166,9 +163,7 @@ def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
 
     int_keys = (
         CONF_LUX_CLOSE_SUMMER,
-        CONF_LUX_OPEN_SUMMER,
         CONF_LUX_CLOSE_WINTER,
-        CONF_LUX_OPEN_WINTER,
         CONF_DEBOUNCE_MINUTES,
         CONF_TICK_MINUTES,
         CONF_MAX_STEP_PER_TICK,
@@ -192,7 +187,6 @@ def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
         CONF_ENABLE_PRIVACY_HOUR,
         CONF_ENABLE_HIGH_LUX_PROTECTION,
         CONF_ENABLE_HEAT_PROTECTION,
-        CONF_ENABLE_LOW_LUX_REOPEN,
         CONF_ENABLE_SUN_ELEVATION_TRACKING,
     )
     for key in bool_keys:
@@ -270,9 +264,7 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(CONF_LUX_CLOSE_SUMMER, default=defaults[CONF_LUX_CLOSE_SUMMER]): vol.All(vol.Coerce(int), vol.Range(min=1000, max=120000)),
-            vol.Required(CONF_LUX_OPEN_SUMMER, default=defaults[CONF_LUX_OPEN_SUMMER]): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
             vol.Required(CONF_LUX_CLOSE_WINTER, default=defaults[CONF_LUX_CLOSE_WINTER]): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(CONF_LUX_OPEN_WINTER, default=defaults[CONF_LUX_OPEN_WINTER]): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
             vol.Required(CONF_DEBOUNCE_MINUTES, default=defaults[CONF_DEBOUNCE_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
             vol.Required(CONF_TICK_MINUTES, default=defaults[CONF_TICK_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
             vol.Required(CONF_MAX_STEP_PER_TICK, default=defaults[CONF_MAX_STEP_PER_TICK]): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
@@ -300,7 +292,6 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=defaults[CONF_ENABLE_PRIVACY_HOUR]): sel.BooleanSelector(),
             vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=defaults[CONF_ENABLE_HIGH_LUX_PROTECTION]): sel.BooleanSelector(),
             vol.Required(CONF_ENABLE_HEAT_PROTECTION, default=defaults[CONF_ENABLE_HEAT_PROTECTION]): sel.BooleanSelector(),
-            vol.Required(CONF_ENABLE_LOW_LUX_REOPEN, default=defaults[CONF_ENABLE_LOW_LUX_REOPEN]): sel.BooleanSelector(),
             vol.Required(CONF_ENABLE_SUN_ELEVATION_TRACKING, default=defaults[CONF_ENABLE_SUN_ELEVATION_TRACKING]): sel.BooleanSelector(),
         }
     )
@@ -494,16 +485,8 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 default=_coerce_int_default(defaults.get(CONF_LUX_CLOSE_SUMMER), int(DEFAULTS[CONF_LUX_CLOSE_SUMMER])),
             ): vol.All(vol.Coerce(int), vol.Range(min=1000, max=120000)),
             vol.Required(
-                CONF_LUX_OPEN_SUMMER,
-                default=_coerce_int_default(defaults.get(CONF_LUX_OPEN_SUMMER), int(DEFAULTS[CONF_LUX_OPEN_SUMMER])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(
                 CONF_LUX_CLOSE_WINTER,
                 default=_coerce_int_default(defaults.get(CONF_LUX_CLOSE_WINTER), int(DEFAULTS[CONF_LUX_CLOSE_WINTER])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
-            vol.Required(
-                CONF_LUX_OPEN_WINTER,
-                default=_coerce_int_default(defaults.get(CONF_LUX_OPEN_WINTER), int(DEFAULTS[CONF_LUX_OPEN_WINTER])),
             ): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
             vol.Required(CONF_HEAT_START_HOUR, default=_hour_default_label(defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR]), DEFAULTS[CONF_HEAT_START_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_HEAT_END_HOUR, default=_hour_default_label(defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR]), DEFAULTS[CONF_HEAT_END_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
@@ -632,10 +615,6 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
             vol.Required(
                 CONF_ENABLE_HEAT_PROTECTION,
                 default=_coerce_bool_default(defaults.get(CONF_ENABLE_HEAT_PROTECTION), bool(DEFAULTS[CONF_ENABLE_HEAT_PROTECTION])),
-            ): sel.BooleanSelector(),
-            vol.Required(
-                CONF_ENABLE_LOW_LUX_REOPEN,
-                default=_coerce_bool_default(defaults.get(CONF_ENABLE_LOW_LUX_REOPEN), bool(DEFAULTS[CONF_ENABLE_LOW_LUX_REOPEN])),
             ): sel.BooleanSelector(),
             vol.Required(
                 CONF_ENABLE_SUN_ELEVATION_TRACKING,

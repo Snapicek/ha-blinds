@@ -13,7 +13,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     CONF_ENABLE_HEAT_PROTECTION,
     CONF_ENABLE_HIGH_LUX_PROTECTION,
-    CONF_ENABLE_LOW_LUX_REOPEN,
     CONF_ENABLE_PRIVACY_HOUR,
     CONF_ENABLE_SUN_ELEVATION_TRACKING,
     DOMAIN,
@@ -37,7 +36,6 @@ async def async_setup_entry(
         HaBlindsPrivacyHourSwitch(coordinator, entry),
         HaBlindsHighLuxProtectionSwitch(coordinator, entry),
         HaBlindsHeatProtectionSwitch(coordinator, entry),
-        HaBlindsLowLuxReopenSwitch(coordinator, entry),
         HaBlindsSunElevationTrackingSwitch(coordinator, entry),
     ]
 
@@ -197,34 +195,6 @@ class HaBlindsHeatProtectionSwitch(HaBlindsBaseSwitch):
     async def async_turn_off(self, **kwargs):
         """Turn off heat protection."""
         await self._async_update_config(CONF_ENABLE_HEAT_PROTECTION, False)
-
-
-class HaBlindsLowLuxReopenSwitch(HaBlindsBaseSwitch):
-    """Low lux reopen feature switch."""
-
-    @property
-    def unique_id(self) -> str:
-        return f"{self.entry.entry_id}_low_lux_reopen_enabled"
-
-    @property
-    def name(self) -> str:
-        return "Low Lux Reopen Enabled"
-
-    @property
-    def is_on(self) -> bool:
-        return bool(self._cfg(CONF_ENABLE_LOW_LUX_REOPEN))
-
-    @property
-    def icon(self) -> str:
-        return "mdi:brightness-5" if self.is_on else "mdi:brightness-4"
-
-    async def async_turn_on(self, **kwargs):
-        """Turn on low lux reopen."""
-        await self._async_update_config(CONF_ENABLE_LOW_LUX_REOPEN, True)
-
-    async def async_turn_off(self, **kwargs):
-        """Turn off low lux reopen."""
-        await self._async_update_config(CONF_ENABLE_LOW_LUX_REOPEN, False)
 
 
 class HaBlindsSunElevationTrackingSwitch(HaBlindsBaseSwitch):

@@ -23,7 +23,6 @@ from .const import (
     CONF_DEBOUNCE_MINUTES,
     CONF_ENABLE_HEAT_PROTECTION,
     CONF_ENABLE_HIGH_LUX_PROTECTION,
-    CONF_ENABLE_LOW_LUX_REOPEN,
     CONF_ENABLE_PRIVACY_HOUR,
     CONF_ENABLE_SUN_ELEVATION_TRACKING,
     CONF_ENABLE_SUNSET_CLOSING,
@@ -32,8 +31,6 @@ from .const import (
     CONF_HEAT_START_HOUR,
     CONF_LUX_CLOSE_SUMMER,
     CONF_LUX_CLOSE_WINTER,
-    CONF_LUX_OPEN_SUMMER,
-    CONF_LUX_OPEN_WINTER,
     CONF_LUX_SENSOR,
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
@@ -61,9 +58,8 @@ _LOGGER = logging.getLogger(__name__)
 @dataclass
 class _RuntimeState:
     paused_until: datetime | None = None
-    privacy_entered_at: datetime | None = None  # Track when privacy hour was first triggered
-    high_lux_since: datetime | None = None  # Track when high lux was first detected
-    low_lux_since: datetime | None = None   # Track when low lux was first detected
+    privacy_entered_at: datetime | None = None
+    high_lux_since: datetime | None = None
     last_reason: str = "startup"
     last_target: int | None = None
     last_decision_time: datetime | None = None
@@ -291,55 +287,37 @@ class HaBlindsController:
                 sunset_time=sunset_time,
                 privacy_entered_at=self._runtime.privacy_entered_at,
                 high_lux_since=self._runtime.high_lux_since,
-                low_lux_since=self._runtime.low_lux_since,
             )
             result = self._engine.evaluate(inputs)
             self._runtime.last_reason = result.reason
             self._runtime.last_decision_time = now
             self._runtime.sun_at_window = result.sun_at_window
 
-            # Track when privacy hour was entered
+            # Track privacy hour entry/exit
             is_winter = now.month in (11, 12, 1, 2, 3)
             enable_privacy_hour = self._cfg_bool(CONF_ENABLE_PRIVACY_HOUR)
             enable_high_lux = self._cfg_bool(CONF_ENABLE_HIGH_LUX_PROTECTION)
-            enable_low_lux = self._cfg_bool(CONF_ENABLE_LOW_LUX_REOPEN)
 
-            # If privacy hour is disabled, clear the tracking
             if not enable_privacy_hour:
                 self._runtime.privacy_entered_at = None
             elif result.reason == "privacy_hour" and self._runtime.privacy_entered_at is None:
-                # Just entered privacy hour
                 self._runtime.privacy_entered_at = now
             elif result.reason != "privacy_hour" and self._runtime.privacy_entered_at is not None:
-                # Left privacy hour (time-based, not duration-based)
                 privacy_hour = self._cfg_int(CONF_WINTER_PRIVACY_HOUR) if is_winter else self._cfg_int(CONF_SUMMER_PRIVACY_HOUR)
                 if now.hour < privacy_hour:
-                    # Reset only if we're before privacy hour time
                     self._runtime.privacy_entered_at = None
 
-            # If high/low lux features are disabled, clear their tracking
+            # Update high lux tracking
             if not enable_high_lux:
                 self._runtime.high_lux_since = None
-            if not enable_low_lux:
-                self._runtime.low_lux_since = None
-
-            # Update lux tracking based on thresholds
-            close_threshold = self._cfg_float(CONF_LUX_CLOSE_WINTER if is_winter else CONF_LUX_CLOSE_SUMMER)
-            open_threshold = self._cfg_float(CONF_LUX_OPEN_WINTER if is_winter else CONF_LUX_OPEN_SUMMER)
-
-            if lux is not None and (enable_high_lux or enable_low_lux):
-                if lux >= close_threshold and enable_high_lux:
+            elif lux is not None:
+                close_threshold = self._cfg_float(CONF_LUX_CLOSE_WINTER if is_winter else CONF_LUX_CLOSE_SUMMER)
+                if lux >= close_threshold:
                     self._runtime.high_lux_since = self._runtime.high_lux_since or now
                 else:
                     self._runtime.high_lux_since = None
-
-                if lux <= open_threshold and enable_low_lux:
-                    self._runtime.low_lux_since = self._runtime.low_lux_since or now
-                else:
-                    self._runtime.low_lux_since = None
             else:
                 self._runtime.high_lux_since = None
-                self._runtime.low_lux_since = None
 
             if not result.should_move:
                 self._update_state_attributes()
@@ -462,9 +440,7 @@ class HaBlindsController:
             window_view_left=self._cfg_int(CONF_WINDOW_VIEW_LEFT),
             window_view_right=self._cfg_int(CONF_WINDOW_VIEW_RIGHT),
             lux_close_summer=self._cfg_float(CONF_LUX_CLOSE_SUMMER),
-            lux_open_summer=self._cfg_float(CONF_LUX_OPEN_SUMMER),
             lux_close_winter=self._cfg_float(CONF_LUX_CLOSE_WINTER),
-            lux_open_winter=self._cfg_float(CONF_LUX_OPEN_WINTER),
             debounce_minutes=self._cfg_int(CONF_DEBOUNCE_MINUTES),
             heat_start_hour=self._cfg_int(CONF_HEAT_START_HOUR),
             heat_end_hour=self._cfg_int(CONF_HEAT_END_HOUR),
@@ -476,7 +452,6 @@ class HaBlindsController:
             night_close_position=self._cfg_int(CONF_NIGHT_CLOSE_POSITION),
             enable_heat_protection=self._cfg_bool(CONF_ENABLE_HEAT_PROTECTION),
             enable_high_lux_protection=self._cfg_bool(CONF_ENABLE_HIGH_LUX_PROTECTION),
-            enable_low_lux_reopen=self._cfg_bool(CONF_ENABLE_LOW_LUX_REOPEN),
             enable_privacy_hour=self._cfg_bool(CONF_ENABLE_PRIVACY_HOUR),
             enable_sun_elevation_tracking=self._cfg_bool(CONF_ENABLE_SUN_ELEVATION_TRACKING),
             enable_sunset_closing=self._cfg_bool(CONF_ENABLE_SUNSET_CLOSING),
