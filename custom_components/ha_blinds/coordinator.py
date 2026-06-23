@@ -126,16 +126,12 @@ class HaBlindsController:
         if new_pos is None or new_pos == old_pos:
             return
 
-        now = dt_util.now()
-        if self._runtime.paused_until and now < self._runtime.paused_until:
-            return
-
         event_ctx = new_state.context
         if event_ctx.parent_id in self._last_command_context_ids or event_ctx.id in self._last_command_context_ids:
             return
 
         _LOGGER.info(
-            "Manual cover movement detected on %s (position %s→%s), pausing automation for %s minutes",
+            "Manual cover movement detected on %s (position %s→%s), pausing/extending automation for %s minutes",
             self._cfg(CONF_COVER_ENTITY),
             old_pos,
             new_pos,
