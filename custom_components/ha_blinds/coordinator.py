@@ -126,16 +126,12 @@ class HaBlindsController:
         if new_pos is None or new_pos == old_pos:
             return
 
-        now = dt_util.now()
-        if self._runtime.paused_until and now < self._runtime.paused_until:
-            return
-
         event_ctx = new_state.context
         if event_ctx.parent_id in self._last_command_context_ids or event_ctx.id in self._last_command_context_ids:
             return
 
         _LOGGER.info(
-            "Manual cover movement detected on %s (position %s→%s), pausing automation for %s minutes",
+            "Manual cover movement detected on %s (position %s→%s), pausing/extending automation for %s minutes",
             self._cfg(CONF_COVER_ENTITY),
             old_pos,
             new_pos,
@@ -505,24 +501,34 @@ class HaBlindsController:
         return sunset_time
 
     def _get_sunrise_time(self, now: datetime) -> datetime | None:
-        """Get sunrise time with offset applied. Returns None during daytime.
+        """Get sunrise time with offset applied.
 
-        sun.sun always exposes the *next* rising, which after today's sunrise
-        has passed becomes tomorrow's value. Comparing next_setting vs next_rising
-        tells us whether we are currently in daytime (sunset comes first) or
-        nighttime (sunrise comes first). During daytime the pre-sunrise rule
-        must not fire, so we return None.
+        sun.sun exposes the *next* rising: after today's sunrise that becomes
+        tomorrow's value. We detect daytime by comparing next_setting vs next_rising
+        (sunset comes first → daytime).
+
+        When an offset is configured and we are in daytime but the sleep-in window
+        has not yet expired, we approximate today's sunrise as next_rising - 1 day
+        and keep the pre-sunrise gate active until sunrise + offset.
         """
         sunrise_time = self._get_time_attribute("next_rising")
         if sunrise_time is None:
             return None
 
+        offset_minutes = self._cfg_int(CONF_SUNRISE_OFFSET_MINUTES)
+
         sunset_time = self._get_time_attribute("next_setting")
         if sunset_time is not None and sunset_time < sunrise_time:
-            # next sunset comes before next sunrise → we are in daytime
+            # Daytime: next_rising is tomorrow's. If an offset is set, check whether
+            # we are still inside the sleep-in window (today_sunrise + offset > now).
+            if offset_minutes > 0:
+                today_sunrise = sunrise_time - timedelta(days=1)
+                sleep_in_end = today_sunrise + timedelta(minutes=offset_minutes)
+                if now < sleep_in_end:
+                    return sleep_in_end  # keep pre_sunrise active until offset expires
             return None
 
-        offset_minutes = self._cfg_int(CONF_SUNRISE_OFFSET_MINUTES)
+        # Nighttime: next_rising is today's upcoming sunrise.
         if offset_minutes != 0:
             sunrise_time = sunrise_time + timedelta(minutes=offset_minutes)
 
