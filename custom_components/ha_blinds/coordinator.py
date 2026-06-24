@@ -34,6 +34,7 @@ from .const import (
     CONF_LUX_SENSOR,
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
+    CONF_DAYTIME_OPEN_POSITION,
     CONF_NIGHT_CLOSE_POSITION,
     CONF_PRIVACY_DURATION_MINUTES,
     CONF_SUMMER_PRIVACY_HOUR,
@@ -446,6 +447,7 @@ class HaBlindsController:
             summer_privacy_hour=self._cfg_int(CONF_SUMMER_PRIVACY_HOUR),
             privacy_duration_minutes=self._cfg_int(CONF_PRIVACY_DURATION_MINUTES),
             night_close_position=self._cfg_int(CONF_NIGHT_CLOSE_POSITION),
+            daytime_open_position=self._cfg_int(CONF_DAYTIME_OPEN_POSITION),
             enable_heat_protection=self._cfg_bool(CONF_ENABLE_HEAT_PROTECTION),
             enable_high_lux_protection=self._cfg_bool(CONF_ENABLE_HIGH_LUX_PROTECTION),
             enable_privacy_hour=self._cfg_bool(CONF_ENABLE_PRIVACY_HOUR),
@@ -488,11 +490,20 @@ class HaBlindsController:
         return None
 
     def _get_sunset_time(self, now: datetime) -> datetime | None:
-        """Get sunset time with offset applied."""
-        sunset_time = self._get_time_attribute("next_setting")
+        """Get sunset time with offset applied.
 
+        After today's sunset, next_setting flips to tomorrow's value.
+        Detect this by checking if next_setting comes after next_rising (nighttime),
+        then subtract one day to recover today's actual sunset.
+        """
+        sunset_time = self._get_time_attribute("next_setting")
         if sunset_time is None:
             return None
+
+        sunrise_time = self._get_time_attribute("next_rising")
+        if sunrise_time is not None and sunset_time > sunrise_time:
+            # Post-sunset: next_setting is tomorrow's — recover today's actual sunset.
+            sunset_time = sunset_time - timedelta(days=1)
 
         offset_minutes = self._cfg_int(CONF_SUNSET_OFFSET_MINUTES)
         if offset_minutes != 0:
