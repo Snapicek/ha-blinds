@@ -81,7 +81,7 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 103, 42, 11000, 20.0, 0, paused=False)
         )
         self.assertTrue(res.should_move)
-        self.assertEqual(res.target_position, 75)
+        self.assertEqual(res.target_position, 70)
         self.assertEqual(res.reason, "daytime_open")
 
     def test_sun_not_at_window_high_lux_still_opens(self) -> None:
@@ -93,7 +93,7 @@ class TestDecisionEngine(unittest.TestCase):
         )
         # Still opens because sun is not at window
         self.assertEqual(res.reason, "daytime_open")
-        self.assertEqual(res.target_position, 75)
+        self.assertEqual(res.target_position, 70)
 
     # ── Sun at window — elevation tracking ───────────────────────────────────
 
@@ -116,6 +116,27 @@ class TestDecisionEngine(unittest.TestCase):
         self.assertEqual(res.reason, "sun_elevation_tracking")
 
     # ── High lux protection ──────────────────────────────────────────────────
+
+    # ── Heat protection ──────────────────────────────────────────────────────
+
+    def test_heat_protection_skipped_below_threshold(self) -> None:
+        """Heat protection must not fire when temperature is below threshold."""
+        engine = DecisionEngine(_cfg(enable_heat_protection=True, temp_threshold=24.0))
+        now = datetime(2026, 7, 1, 13, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 230, 45, 10000, 20.0, 70, paused=False)
+        )
+        self.assertNotEqual(res.reason, "peak_heat_hours")
+
+    def test_heat_protection_fires_without_temp_sensor(self) -> None:
+        """Heat protection fires on time-of-day when no temp sensor is configured."""
+        engine = DecisionEngine(_cfg(enable_heat_protection=True))
+        now = datetime(2026, 7, 1, 13, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 230, 45, 10000, None, 70, paused=False)
+        )
+        self.assertEqual(res.reason, "peak_heat_hours")
+        self.assertEqual(res.target_position, 20)
 
     def test_high_lux_debounce_closes(self) -> None:
         """High lux debounced → close when sun is at window."""
@@ -174,7 +195,7 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 90, 15, 5000, 18.0, 0, paused=False, sunrise_time=sunrise)
         )
         self.assertEqual(res.reason, "daytime_open")
-        self.assertEqual(res.target_position, 75)
+        self.assertEqual(res.target_position, 70)
 
     def test_sunset_closes(self) -> None:
         engine = DecisionEngine(_cfg(enable_sunset_closing=True))

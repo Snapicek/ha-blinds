@@ -26,7 +26,7 @@ class DecisionConfig:
     summer_privacy_hour: int
     privacy_duration_minutes: int = 480
     night_close_position: int = 0
-    daytime_open_position: int = 75
+    daytime_open_position: int = 70
     # Feature toggles
     enable_heat_protection: bool = True
     enable_high_lux_protection: bool = True
@@ -121,6 +121,7 @@ class DecisionEngine:
                 self.config.enable_heat_protection
                 and not is_winter
                 and self._hour_in_range(inputs.now.hour, self.config.heat_start_hour, self.config.heat_end_hour)
+                and (inputs.temperature is None or inputs.temperature >= self.config.temp_threshold)
             ):
                 return self._result(inputs.current_position, self.config.heat_position, "peak_heat_hours", sun_at_window)
 
