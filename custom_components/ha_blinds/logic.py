@@ -36,6 +36,13 @@ class DecisionConfig:
     enable_sunset_closing: bool = False
     sunrise_offset_minutes: int = 0
     sunset_offset_minutes: int = 0
+    # Earliest open time
+    earliest_open_hour: int = 7
+    earliest_open_minute: int = 30
+    # Lux-driven daytime logic
+    lux_low_threshold: float = 5000
+    daytime_cloudy_position: int = 90
+    movement_threshold: int = 10
 
 
 @dataclass
@@ -74,18 +81,25 @@ class DecisionEngine:
         if inputs.paused:
             return DecisionResult(False, inputs.current_position, "paused", sun_at_window)
 
+        # Hard floor: do not open before earliest_open_time
+        earliest = inputs.now.replace(
+            hour=self.config.earliest_open_hour,
+            minute=self.config.earliest_open_minute,
+            second=0, microsecond=0,
+        )
+        if inputs.now < earliest:
+            return self._result(inputs.current_position, self.config.night_close_position, "too_early", sun_at_window)
+
         # Sunset closing
         if self.config.enable_sunset_closing and inputs.sunset_time is not None:
             if inputs.now >= inputs.sunset_time:
                 return self._result(inputs.current_position, self.config.night_close_position, "sunset_closing", sun_at_window)
 
         # Pre-sunrise: keep closed until sunrise + offset (sleep-in).
-        # Guard: only fire after sunset_closing would have fired — prevents
-        # pre_sunrise from jumping in during the sunset offset window.
+        # Only applies in the morning — the sunset offset window is always evening.
         if self.config.enable_sunset_closing and inputs.sunrise_time is not None:
-            if inputs.now < inputs.sunrise_time:
-                if inputs.sunset_time is None or inputs.now >= inputs.sunset_time:
-                    return self._result(inputs.current_position, self.config.night_close_position, "pre_sunrise_closing", sun_at_window)
+            if inputs.now < inputs.sunrise_time and inputs.now.hour < 12:
+                return self._result(inputs.current_position, self.config.night_close_position, "pre_sunrise_closing", sun_at_window)
 
         # Privacy hour
         if self.config.enable_privacy_hour and inputs.privacy_entered_at is not None:
@@ -109,8 +123,14 @@ class DecisionEngine:
             if not in_sunset_offset_window:
                 return self._result(inputs.current_position, self.config.night_close_position, "night_close", sun_at_window)
 
+        lux_is_low = inputs.lux is not None and inputs.lux < self.config.lux_low_threshold
+
         # Daytime: branch on whether sun is in front of the window
         if sun_at_window:
+            # Lux gate: if lux sensor shows low light, sun is blocked by obstacle
+            if lux_is_low:
+                return self._result(inputs.current_position, self.config.daytime_open_position, "sun_blocked_by_obstacle", sun_at_window)
+
             # High lux protection: direct sun glare → close
             if self.config.enable_high_lux_protection and inputs.high_lux_since is not None:
                 if self._debounced(inputs.high_lux_since, inputs.now):
@@ -133,7 +153,11 @@ class DecisionEngine:
             # Elevation tracking disabled — hold
             return DecisionResult(False, inputs.current_position, "sun_tracking_disabled", sun_at_window)
 
-        # Sun not at window (morning / evening) — open to let in daylight
+        # Sun not at window — check if cloudy (low lux)
+        if lux_is_low:
+            return self._result(inputs.current_position, self.config.daytime_cloudy_position, "daytime_cloudy", sun_at_window)
+
+        # Sun not at window, normal light — open to let in daylight
         return self._result(inputs.current_position, self.config.daytime_open_position, "daytime_open", sun_at_window)
 
     def _result(
@@ -144,7 +168,8 @@ class DecisionEngine:
         sun_at_window: bool,
     ) -> DecisionResult:
         target = max(0, min(100, int(target_position)))
-        return DecisionResult(abs(target - current_position) >= 2, target, reason, sun_at_window)
+        threshold = self.config.movement_threshold
+        return DecisionResult(abs(target - current_position) >= threshold, target, reason, sun_at_window)
 
     def _debounced(self, since: datetime | None, now: datetime) -> bool:
         if since is None:

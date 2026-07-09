@@ -65,18 +65,22 @@ With `max_step_per_tick = 20` and `tick_minutes = 5`, moving from 0% to 75% take
 
 ```
 1. paused
-2. sunset_closing         — now >= actual_sunset + sunset_offset
-3. pre_sunrise_closing    — now < actual_sunrise + sunrise_offset
-                            AND now >= sunset_time (guard: don't fire in offset window)
-4. privacy_hour           — time-based or duration-based
-5. night_close            — elevation < 0
+2. too_early              — now < earliest_open_hour:earliest_open_minute
+3. sunset_closing         — now >= actual_sunset + sunset_offset
+4. pre_sunrise_closing    — now < actual_sunrise + sunrise_offset AND hour < 12
+5. privacy_hour           — time-based or duration-based
+6. night_close            — elevation < 0
                             UNLESS in sunset offset window (elevation < 0 but not yet sunset_time)
-6. [sun_at_window = True]
+7. [sun_at_window = True AND lux < lux_low_threshold]
+   sun_blocked_by_obstacle — open to daytime_open_position (sun behind building/clouds)
+8. [sun_at_window = True AND lux >= lux_low_threshold (or lux unavailable)]
    a. direct_sun_high_lux — lux >= close_threshold, debounced
    b. peak_heat_hours     — summer + heat hours + enable_heat_protection
    c. sun_elevation_tracking — elevation-based slat position
    d. sun_tracking_disabled  — tracking off, hold position
-7. [sun_at_window = False]
+9. [sun_at_window = False AND lux < lux_low_threshold]
+   daytime_cloudy         — open to daytime_cloudy_position (more light on overcast days)
+10. [sun_at_window = False]
    daytime_open           — open to daytime_open_position
 ```
 

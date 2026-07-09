@@ -39,6 +39,13 @@ CONF_ENABLE_SUN_ELEVATION_TRACKING = "enable_sun_elevation_tracking"
 CONF_ENABLE_SUNSET_CLOSING = "enable_sunset_closing"
 CONF_SUNRISE_OFFSET_MINUTES = "sunrise_offset_minutes"
 CONF_SUNSET_OFFSET_MINUTES = "sunset_offset_minutes"
+CONF_EARLIEST_OPEN_HOUR = "earliest_open_hour"
+CONF_EARLIEST_OPEN_MINUTE = "earliest_open_minute"
+
+# Lux-driven daytime logic
+CONF_LUX_LOW_THRESHOLD = "lux_low_threshold"
+CONF_DAYTIME_CLOUDY_POSITION = "daytime_cloudy_position"
+CONF_MOVEMENT_THRESHOLD = "movement_threshold"
 
 SERVICE_PAUSE = "pause"
 SERVICE_RESUME = "resume"
@@ -72,10 +79,16 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_ENABLE_SUN_ELEVATION_TRACKING: True,
     # Night close position: 0% (closed) or 100% (privacy mode)
     CONF_NIGHT_CLOSE_POSITION: 0,
-    CONF_DAYTIME_OPEN_POSITION: 75,
+    CONF_DAYTIME_OPEN_POSITION: 70,
     # Sunset/Sunrise feature
     CONF_ENABLE_SUNSET_CLOSING: False,
     CONF_SUNRISE_OFFSET_MINUTES: 0,
     CONF_SUNSET_OFFSET_MINUTES: 0,
+    CONF_EARLIEST_OPEN_HOUR: 7,
+    CONF_EARLIEST_OPEN_MINUTE: 30,
+    # Lux-driven daytime logic
+    CONF_LUX_LOW_THRESHOLD: 5000,
+    CONF_DAYTIME_CLOUDY_POSITION: 90,
+    CONF_MOVEMENT_THRESHOLD: 10,
 }
 

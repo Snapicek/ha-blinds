@@ -33,6 +33,11 @@ from .const import (
     CONF_SUMMER_PRIVACY_HOUR,
     CONF_SUNRISE_OFFSET_MINUTES,
     CONF_SUNSET_OFFSET_MINUTES,
+    CONF_EARLIEST_OPEN_HOUR,
+    CONF_EARLIEST_OPEN_MINUTE,
+    CONF_LUX_LOW_THRESHOLD,
+    CONF_DAYTIME_CLOUDY_POSITION,
+    CONF_MOVEMENT_THRESHOLD,
     CONF_TEMP_SENSOR,
     CONF_TEMP_THRESHOLD,
     CONF_TICK_MINUTES,
@@ -53,6 +58,15 @@ def _convert_time_inputs(user_input: dict[str, Any]) -> None:
     for time_key in [CONF_HEAT_START_HOUR, CONF_HEAT_END_HOUR, CONF_WINTER_PRIVACY_HOUR, CONF_SUMMER_PRIVACY_HOUR]:
         if time_key in user_input:
             user_input[time_key] = _coerce_hour_value(user_input[time_key])
+    # Convert earliest open HH:MM to hour + minute
+    if CONF_EARLIEST_OPEN_HOUR in user_input:
+        raw = user_input[CONF_EARLIEST_OPEN_HOUR]
+        if isinstance(raw, str) and ":" in raw:
+            parts = raw.split(":")
+            user_input[CONF_EARLIEST_OPEN_HOUR] = int(parts[0])
+            user_input[CONF_EARLIEST_OPEN_MINUTE] = int(parts[1])
+        else:
+            user_input[CONF_EARLIEST_OPEN_HOUR] = _coerce_hour_value(raw)
 
 
 def _coerce_hour_value(value: Any) -> int:
@@ -175,6 +189,11 @@ def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
         CONF_ZIGBEE_DELAY_SECONDS,
         CONF_SUNSET_OFFSET_MINUTES,
         CONF_SUNRISE_OFFSET_MINUTES,
+        CONF_EARLIEST_OPEN_HOUR,
+        CONF_EARLIEST_OPEN_MINUTE,
+        CONF_LUX_LOW_THRESHOLD,
+        CONF_DAYTIME_CLOUDY_POSITION,
+        CONF_MOVEMENT_THRESHOLD,
     )
     for key in int_keys:
         sanitized[key] = _coerce_int_default(sanitized.get(key), int(DEFAULTS[key]))
@@ -507,6 +526,18 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 CONF_DAYTIME_OPEN_POSITION,
                 default=_coerce_int_default(defaults.get(CONF_DAYTIME_OPEN_POSITION), int(DEFAULTS[CONF_DAYTIME_OPEN_POSITION])),
             ): vol.All(vol.Coerce(int), vol.Range(min=50, max=100)),
+            vol.Required(
+                CONF_LUX_LOW_THRESHOLD,
+                default=_coerce_int_default(defaults.get(CONF_LUX_LOW_THRESHOLD), int(DEFAULTS[CONF_LUX_LOW_THRESHOLD])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=500, max=30000)),
+            vol.Required(
+                CONF_DAYTIME_CLOUDY_POSITION,
+                default=_coerce_int_default(defaults.get(CONF_DAYTIME_CLOUDY_POSITION), int(DEFAULTS[CONF_DAYTIME_CLOUDY_POSITION])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=50, max=100)),
+            vol.Required(
+                CONF_MOVEMENT_THRESHOLD,
+                default=_coerce_int_default(defaults.get(CONF_MOVEMENT_THRESHOLD), int(DEFAULTS[CONF_MOVEMENT_THRESHOLD])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=2, max=30)),
         }
         return self._show_schema_form(
             step_id="thresholds",
@@ -585,6 +616,14 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 CONF_SUNRISE_OFFSET_MINUTES,
                 default=_coerce_int_default(defaults.get(CONF_SUNRISE_OFFSET_MINUTES), int(DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES])),
             ): sel.NumberSelector(sel.NumberSelectorConfig(min=-120, max=120, step=1, mode=sel.NumberSelectorMode.BOX)),
+            vol.Required(
+                CONF_EARLIEST_OPEN_HOUR,
+                default=_hour_default_label(defaults.get(CONF_EARLIEST_OPEN_HOUR, DEFAULTS[CONF_EARLIEST_OPEN_HOUR]), DEFAULTS[CONF_EARLIEST_OPEN_HOUR]),
+            ): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
+            vol.Required(
+                CONF_EARLIEST_OPEN_MINUTE,
+                default=_coerce_int_default(defaults.get(CONF_EARLIEST_OPEN_MINUTE), int(DEFAULTS[CONF_EARLIEST_OPEN_MINUTE])),
+            ): sel.NumberSelector(sel.NumberSelectorConfig(min=0, max=59, step=5, mode=sel.NumberSelectorMode.BOX)),
         }
         return self._show_schema_form(
             step_id="sunset",

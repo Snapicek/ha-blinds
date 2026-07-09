@@ -46,8 +46,16 @@ Copy `custom_components/ha_blinds` into `/config/custom_components/` and restart
 
 ## Features
 
+### Earliest open time
+Blinds never open before `earliest_open_hour`:`earliest_open_minute` (default 07:30), regardless of sunrise, sun position, or lux. This prevents early-morning disturbance in summer when sunrise is very early.
+
 ### Daytime open
-When the sun is above the horizon but not yet facing the window (morning, evening), blinds open to the configured `daytime_open_position` (default 75%) to let in diffuse light.
+When the sun is above the horizon but not yet facing the window (morning, evening), blinds open to the configured `daytime_open_position` (default 70%) to let in diffuse light.
+
+### Lux-driven daytime logic
+The lux sensor now actively influences daytime decisions:
+- **Sun blocked by obstacle**: When sun azimuth points at the window but lux is below `lux_low_threshold` (default 5000), the sun is blocked by a building or clouds — blinds open to `daytime_open_position` instead of closing.
+- **Cloudy day**: When sun is not at window and lux is below `lux_low_threshold`, blinds open wider to `daytime_cloudy_position` (default 90%) to let in more diffuse light.
 
 ### Sun elevation tracking
 When the sun faces the window, slat angle is adjusted based on elevation:
@@ -90,7 +98,10 @@ Options are split into four menus: **Thresholds**, **Timing**, **Sunset**, **Fea
 | `winter_privacy_hour` | 16:00 | Privacy hour start (Nov–Mar) |
 | `summer_privacy_hour` | 19:00 | Privacy hour start (Apr–Oct) |
 | `night_close_position` | 0% | Position for night/privacy/sunset close (0 or 100) |
-| `daytime_open_position` | 75% | Position when sun is not at window (morning/evening) |
+| `daytime_open_position` | 70% | Position when sun is not at window (morning/evening) |
+| `lux_low_threshold` | 5000 lx | Below this, sun is considered blocked (building, clouds) |
+| `daytime_cloudy_position` | 90% | Position when overcast (lux below low threshold) |
+| `movement_threshold` | 10% | Minimum position difference to trigger a move (reduces noise) |
 
 ### Timing
 
@@ -108,6 +119,8 @@ Options are split into four menus: **Thresholds**, **Timing**, **Sunset**, **Fea
 | `enable_sunset_closing` | off | Enable sunset/sunrise feature |
 | `sunset_offset_minutes` | 0 | Close this many minutes after actual sunset (negative = before) |
 | `sunrise_offset_minutes` | 0 | Open this many minutes after actual sunrise (sleep-in) |
+| `earliest_open_hour` | 7 | Blinds never open before this hour (hard floor) |
+| `earliest_open_minute` | 30 | Minute part of earliest open time |
 
 ### Features
 
