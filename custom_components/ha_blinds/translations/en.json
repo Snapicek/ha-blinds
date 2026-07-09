@@ -126,7 +126,10 @@
           "temp_threshold": "Temperature threshold (°C)",
           "winter_privacy_hour": "Winter privacy hour",
           "summer_privacy_hour": "Summer privacy hour",
-          "night_close_position": "Night close position"
+          "night_close_position": "Night close position",
+          "lux_low_threshold": "Low lux threshold",
+          "daytime_cloudy_position": "Cloudy day position (%)",
+          "movement_threshold": "Movement threshold (%)"
         },
         "data_description": {
           "lux_close_summer": "Lux threshold to close blinds in summer. Higher = close only in bright sun. Recommended: 35000.",
@@ -139,7 +142,10 @@
           "temp_threshold": "Temperature above which heat protection activates. Recommended: 24.0.",
           "winter_privacy_hour": "Hour to close blinds for privacy in winter (0-23). Recommended: 16.",
           "summer_privacy_hour": "Hour to close blinds for privacy in summer (0-23). Recommended: 19.",
-          "night_close_position": "Night close target: 0 (Closed) or 100 (Privacy Mode)."
+          "night_close_position": "Night close target: 0 (Closed) or 100 (Privacy Mode).",
+          "lux_low_threshold": "Lux below this means sun is not actually hitting the window (blocked by building, clouds).",
+          "daytime_cloudy_position": "Blind position when it is overcast (lux below low threshold, sun not at window).",
+          "movement_threshold": "Minimum position difference (%) to trigger a move. Higher = fewer movements, less noise."
         }
       },
       "timing": {
@@ -164,12 +170,16 @@
         "data": {
           "enable_sunset_closing": "Enable Sunset Closing",
           "sunset_offset_minutes": "Sunset offset (minutes)",
-          "sunrise_offset_minutes": "Sunrise offset (minutes)"
+          "sunrise_offset_minutes": "Sunrise offset (minutes)",
+          "earliest_open_hour": "Earliest open hour",
+          "earliest_open_minute": "Earliest open minute"
         },
         "data_description": {
           "enable_sunset_closing": "Enable automatic closing around sunset using sun.sun.",
           "sunset_offset_minutes": "Minutes relative to sunset. Negative = before sunset, positive = after sunset.",
-          "sunrise_offset_minutes": "Minutes relative to sunrise for reopening behavior. Negative = before sunrise, positive = after sunrise."
+          "sunrise_offset_minutes": "Minutes relative to sunrise for reopening behavior. Negative = before sunrise, positive = after sunrise.",
+          "earliest_open_hour": "Blinds will never open before this hour, regardless of sunrise or sun position.",
+          "earliest_open_minute": "Minute part of the earliest open time (combined with hour above)."
         }
       },
       "features": {

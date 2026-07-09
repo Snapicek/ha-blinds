@@ -21,6 +21,11 @@ def _cfg(**overrides) -> DecisionConfig:
         winter_privacy_hour=16,
         summer_privacy_hour=19,
         night_close_position=0,
+        earliest_open_hour=7,
+        earliest_open_minute=30,
+        lux_low_threshold=5000,
+        daytime_cloudy_position=90,
+        movement_threshold=10,
     )
     base.update(overrides)
     return DecisionConfig(**base)
@@ -49,7 +54,7 @@ class TestDecisionEngine(unittest.TestCase):
         )
         self.assertTrue(res.should_move)
         self.assertEqual(res.target_position, 0)
-        self.assertEqual(res.reason, "night_close")
+        self.assertEqual(res.reason, "too_early")
 
     def test_night_already_closed_no_move(self) -> None:
         now = datetime(2026, 7, 1, 3, 0, 0)
@@ -57,6 +62,17 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 180, -20, 100, 18.0, 0, paused=False)
         )
         self.assertFalse(res.should_move)
+        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.reason, "too_early")
+
+    def test_night_close_after_earliest_open(self) -> None:
+        """After earliest_open but sun below horizon → night_close."""
+        engine = DecisionEngine(_cfg(earliest_open_hour=7, earliest_open_minute=0))
+        now = datetime(2026, 11, 1, 7, 30, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 180, -5, 100, 18.0, 75, paused=False)
+        )
+        self.assertTrue(res.should_move)
         self.assertEqual(res.target_position, 0)
         self.assertEqual(res.reason, "night_close")
 
@@ -175,24 +191,25 @@ class TestDecisionEngine(unittest.TestCase):
     # ── Sunset / Sunrise ─────────────────────────────────────────────────────
 
     def test_pre_sunrise_keeps_closed(self) -> None:
-        engine = DecisionEngine(_cfg(enable_sunset_closing=True))
-        now = datetime(2026, 7, 1, 4, 0, 0)
-        sunrise = datetime(2026, 7, 1, 5, 30, 0)
+        """Before sunrise+offset but after earliest_open → pre_sunrise_closing."""
+        engine = DecisionEngine(_cfg(enable_sunset_closing=True, earliest_open_hour=7, earliest_open_minute=0))
+        now = datetime(2026, 7, 1, 7, 10, 0)
+        sunrise = datetime(2026, 7, 1, 7, 30, 0)  # sunrise + offset
         res = engine.evaluate(
-            DecisionInputs(now, 180, 5, 500, 18.0, 0, paused=False, sunrise_time=sunrise)
+            DecisionInputs(now, 90, 5, 500, 18.0, 0, paused=False, sunrise_time=sunrise)
         )
         self.assertFalse(res.should_move)
         self.assertEqual(res.target_position, 0)
         self.assertEqual(res.reason, "pre_sunrise_closing")
 
     def test_after_sunrise_opens(self) -> None:
-        """After sunrise, sun not yet at SW window → daytime_open."""
-        engine = DecisionEngine(_cfg(enable_sunset_closing=True))
-        now = datetime(2026, 7, 1, 6, 0, 0)
-        sunrise = datetime(2026, 7, 1, 5, 30, 0)
+        """After sunrise+offset, sun not yet at SW window → daytime_open."""
+        engine = DecisionEngine(_cfg(enable_sunset_closing=True, earliest_open_hour=7, earliest_open_minute=0))
+        now = datetime(2026, 7, 1, 8, 0, 0)
+        sunrise = datetime(2026, 7, 1, 7, 30, 0)
         # Azimuth 90° = east, not at SW window (180–300°)
         res = engine.evaluate(
-            DecisionInputs(now, 90, 15, 5000, 18.0, 0, paused=False, sunrise_time=sunrise)
+            DecisionInputs(now, 90, 15, 8000, 18.0, 0, paused=False, sunrise_time=sunrise)
         )
         self.assertEqual(res.reason, "daytime_open")
         self.assertEqual(res.target_position, 70)
@@ -246,6 +263,98 @@ class TestDecisionEngine(unittest.TestCase):
         )
         self.assertIn(res.reason, ("sunset_closing", "pre_sunrise_closing"))
         self.assertEqual(res.target_position, 0)
+
+
+    # ── Earliest open time ────────────────────────────────────────────────────
+
+    def test_too_early_keeps_closed(self) -> None:
+        """Before earliest_open_time, blinds stay closed regardless of sun."""
+        engine = DecisionEngine(_cfg(earliest_open_hour=7, earliest_open_minute=30))
+        now = datetime(2026, 7, 1, 5, 10, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 90, 10, 8000, 20.0, 75, paused=False)
+        )
+        self.assertTrue(res.should_move)
+        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.reason, "too_early")
+
+    def test_earliest_open_allows_after(self) -> None:
+        """After earliest_open_time, normal logic applies."""
+        engine = DecisionEngine(_cfg(earliest_open_hour=7, earliest_open_minute=30))
+        now = datetime(2026, 7, 1, 8, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 90, 30, 15000, 20.0, 0, paused=False)
+        )
+        self.assertEqual(res.reason, "daytime_open")
+
+    # ── Pre-sunrise fix verification ─────────────────────────────────────────
+
+    def test_pre_sunrise_works_at_510am_with_offset(self) -> None:
+        """5:10 AM with sunrise+offset at 7:00 — must stay closed (was the original bug)."""
+        engine = DecisionEngine(_cfg(
+            enable_sunset_closing=True,
+            earliest_open_hour=5, earliest_open_minute=0,
+        ))
+        now = datetime(2026, 7, 1, 5, 10, 0)
+        sunrise_with_offset = datetime(2026, 7, 1, 7, 0, 0)
+        sunset = datetime(2026, 7, 1, 21, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 90, 5, 500, 18.0, 0, paused=False,
+                           sunrise_time=sunrise_with_offset, sunset_time=sunset)
+        )
+        self.assertFalse(res.should_move)
+        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.reason, "pre_sunrise_closing")
+
+    # ── Lux-driven daytime logic ─────────────────────────────────────────────
+
+    def test_sun_at_window_low_lux_opens(self) -> None:
+        """Sun at window (azimuth) but lux low → sun blocked by obstacle."""
+        engine = DecisionEngine(_cfg(lux_low_threshold=5000))
+        now = datetime(2026, 7, 1, 17, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 230, 15, 2000, 22.0, 0, paused=False)
+        )
+        self.assertEqual(res.reason, "sun_blocked_by_obstacle")
+        self.assertEqual(res.target_position, 70)
+
+    def test_cloudy_day_uses_cloudy_position(self) -> None:
+        """Low lux, sun not at window → cloudy position."""
+        engine = DecisionEngine(_cfg(daytime_cloudy_position=90, lux_low_threshold=5000))
+        now = datetime(2026, 7, 1, 12, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 90, 45, 3000, 20.0, 0, paused=False)
+        )
+        self.assertEqual(res.reason, "daytime_cloudy")
+        self.assertEqual(res.target_position, 90)
+
+    def test_lux_none_does_not_trigger_sun_blocked(self) -> None:
+        """When lux is None (sensor unavailable), fall back to azimuth-based logic."""
+        now = datetime(2026, 7, 1, 9, 0, 0)
+        res = self.engine.evaluate(
+            DecisionInputs(now, 230, 40, None, 20.0, 0, paused=False)
+        )
+        self.assertEqual(res.reason, "sun_elevation_tracking")
+
+    # ── Movement threshold ───────────────────────────────────────────────────
+
+    def test_movement_threshold_prevents_small_moves(self) -> None:
+        """8% difference with threshold 10 → no move."""
+        engine = DecisionEngine(_cfg(movement_threshold=10))
+        now = datetime(2026, 7, 1, 12, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 90, 30, 15000, 20.0, 62, paused=False)
+        )
+        self.assertFalse(res.should_move)
+
+    def test_movement_threshold_allows_large_moves(self) -> None:
+        """25% difference with threshold 10 → move."""
+        engine = DecisionEngine(_cfg(movement_threshold=10))
+        now = datetime(2026, 7, 1, 12, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 90, 30, 15000, 20.0, 45, paused=False)
+        )
+        self.assertTrue(res.should_move)
 
 
 if __name__ == "__main__":
