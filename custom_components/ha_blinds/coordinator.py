@@ -44,6 +44,7 @@ from .const import (
     CONF_EARLIEST_OPEN_MINUTE,
     CONF_LUX_LOW_THRESHOLD,
     CONF_DAYTIME_CLOUDY_POSITION,
+    CONF_MIN_POSITION,
     CONF_MOVEMENT_THRESHOLD,
     CONF_TEMP_SENSOR,
     CONF_TEMP_THRESHOLD,
@@ -465,6 +466,7 @@ class HaBlindsController:
             lux_low_threshold=self._cfg_float(CONF_LUX_LOW_THRESHOLD),
             daytime_cloudy_position=self._cfg_int(CONF_DAYTIME_CLOUDY_POSITION),
             movement_threshold=self._cfg_int(CONF_MOVEMENT_THRESHOLD),
+            min_position=self._cfg_int(CONF_MIN_POSITION),
         )
 
     def _float_state(self, entity_id: str) -> float | None:

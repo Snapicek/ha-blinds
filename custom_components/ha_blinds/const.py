@@ -46,6 +46,7 @@ CONF_EARLIEST_OPEN_MINUTE = "earliest_open_minute"
 CONF_LUX_LOW_THRESHOLD = "lux_low_threshold"
 CONF_DAYTIME_CLOUDY_POSITION = "daytime_cloudy_position"
 CONF_MOVEMENT_THRESHOLD = "movement_threshold"
+CONF_MIN_POSITION = "min_position"
 
 SERVICE_PAUSE = "pause"
 SERVICE_RESUME = "resume"
@@ -89,6 +90,7 @@ DEFAULTS: dict[str, int | float | bool] = {
     # Lux-driven daytime logic
     CONF_LUX_LOW_THRESHOLD: 5000,
     CONF_DAYTIME_CLOUDY_POSITION: 90,
-    CONF_MOVEMENT_THRESHOLD: 10,
+    CONF_MOVEMENT_THRESHOLD: 5,
+    CONF_MIN_POSITION: 3,
 }
 

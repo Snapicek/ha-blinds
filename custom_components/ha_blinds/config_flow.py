@@ -37,6 +37,7 @@ from .const import (
     CONF_EARLIEST_OPEN_MINUTE,
     CONF_LUX_LOW_THRESHOLD,
     CONF_DAYTIME_CLOUDY_POSITION,
+    CONF_MIN_POSITION,
     CONF_MOVEMENT_THRESHOLD,
     CONF_TEMP_SENSOR,
     CONF_TEMP_THRESHOLD,
@@ -193,6 +194,7 @@ def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
         CONF_EARLIEST_OPEN_MINUTE,
         CONF_LUX_LOW_THRESHOLD,
         CONF_DAYTIME_CLOUDY_POSITION,
+        CONF_MIN_POSITION,
         CONF_MOVEMENT_THRESHOLD,
     )
     for key in int_keys:
@@ -538,6 +540,10 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 CONF_MOVEMENT_THRESHOLD,
                 default=_coerce_int_default(defaults.get(CONF_MOVEMENT_THRESHOLD), int(DEFAULTS[CONF_MOVEMENT_THRESHOLD])),
             ): vol.All(vol.Coerce(int), vol.Range(min=2, max=30)),
+            vol.Required(
+                CONF_MIN_POSITION,
+                default=_coerce_int_default(defaults.get(CONF_MIN_POSITION), int(DEFAULTS[CONF_MIN_POSITION])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=20)),
         }
         return self._show_schema_form(
             step_id="thresholds",

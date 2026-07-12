@@ -25,7 +25,7 @@ def _cfg(**overrides) -> DecisionConfig:
         earliest_open_minute=30,
         lux_low_threshold=5000,
         daytime_cloudy_position=90,
-        movement_threshold=10,
+        movement_threshold=5,
     )
     base.update(overrides)
     return DecisionConfig(**base)
@@ -53,16 +53,16 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 230, -5, 5000, 22.0, 75, paused=False)
         )
         self.assertTrue(res.should_move)
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "too_early")
 
     def test_night_already_closed_no_move(self) -> None:
         now = datetime(2026, 7, 1, 3, 0, 0)
         res = self.engine.evaluate(
-            DecisionInputs(now, 180, -20, 100, 18.0, 0, paused=False)
+            DecisionInputs(now, 180, -20, 100, 18.0, 3, paused=False)
         )
         self.assertFalse(res.should_move)
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "too_early")
 
     def test_night_close_after_earliest_open(self) -> None:
@@ -73,7 +73,7 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 180, -5, 100, 18.0, 75, paused=False)
         )
         self.assertTrue(res.should_move)
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "night_close")
 
     # ── Privacy hour ─────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 220, 5, 10000, 21.0, 75, paused=False)
         )
         self.assertTrue(res.should_move)
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "privacy_hour")
 
     # ── Daytime open (sun NOT at window) ─────────────────────────────────────
@@ -119,7 +119,7 @@ class TestDecisionEngine(unittest.TestCase):
         res = self.engine.evaluate(
             DecisionInputs(now, 230, 8, 5000, 18.0, 75, paused=False)
         )
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "sun_elevation_tracking")
 
     def test_high_sun_at_window_opens(self) -> None:
@@ -164,7 +164,7 @@ class TestDecisionEngine(unittest.TestCase):
                 high_lux_since=start,
             )
         )
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "direct_sun_high_lux")
 
     def test_high_lux_not_debounced_yet_uses_elevation(self) -> None:
@@ -199,7 +199,7 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 90, 5, 500, 18.0, 0, paused=False, sunrise_time=sunrise)
         )
         self.assertFalse(res.should_move)
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "pre_sunrise_closing")
 
     def test_after_sunrise_opens(self) -> None:
@@ -222,7 +222,7 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 260, 5, 1000, 20.0, 75, paused=False, sunset_time=sunset)
         )
         self.assertTrue(res.should_move)
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "sunset_closing")
 
     def test_night_close_does_not_fire_in_sunset_offset_window(self) -> None:
@@ -262,7 +262,7 @@ class TestDecisionEngine(unittest.TestCase):
                            sunset_time=sunset_with_offset, sunrise_time=sunrise)
         )
         self.assertIn(res.reason, ("sunset_closing", "pre_sunrise_closing"))
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
 
 
     # ── Earliest open time ────────────────────────────────────────────────────
@@ -275,7 +275,7 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 90, 10, 8000, 20.0, 75, paused=False)
         )
         self.assertTrue(res.should_move)
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "too_early")
 
     def test_earliest_open_allows_after(self) -> None:
@@ -303,7 +303,7 @@ class TestDecisionEngine(unittest.TestCase):
                            sunrise_time=sunrise_with_offset, sunset_time=sunset)
         )
         self.assertFalse(res.should_move)
-        self.assertEqual(res.target_position, 0)
+        self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "pre_sunrise_closing")
 
     # ── Lux-driven daytime logic ─────────────────────────────────────────────
@@ -339,17 +339,35 @@ class TestDecisionEngine(unittest.TestCase):
     # ── Movement threshold ───────────────────────────────────────────────────
 
     def test_movement_threshold_prevents_small_moves(self) -> None:
-        """8% difference with threshold 10 → no move."""
-        engine = DecisionEngine(_cfg(movement_threshold=10))
+        """3% difference with threshold 5 → no move."""
+        engine = DecisionEngine(_cfg(movement_threshold=5))
         now = datetime(2026, 7, 1, 12, 0, 0)
         res = engine.evaluate(
-            DecisionInputs(now, 90, 30, 15000, 20.0, 62, paused=False)
+            DecisionInputs(now, 90, 30, 15000, 20.0, 67, paused=False)
         )
         self.assertFalse(res.should_move)
 
+    def test_min_position_clamps_target(self) -> None:
+        """min_position=5 prevents motor from going below 5%."""
+        engine = DecisionEngine(_cfg(min_position=5))
+        now = datetime(2026, 7, 1, 3, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 180, -20, 100, 18.0, 75, paused=False)
+        )
+        self.assertEqual(res.target_position, 5)
+
+    def test_min_position_zero_allows_full_close(self) -> None:
+        """min_position=0 allows motor to go to 0%."""
+        engine = DecisionEngine(_cfg(min_position=0))
+        now = datetime(2026, 7, 1, 3, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 180, -20, 100, 18.0, 75, paused=False)
+        )
+        self.assertEqual(res.target_position, 0)
+
     def test_movement_threshold_allows_large_moves(self) -> None:
-        """25% difference with threshold 10 → move."""
-        engine = DecisionEngine(_cfg(movement_threshold=10))
+        """25% difference with threshold 5 → move."""
+        engine = DecisionEngine(_cfg(movement_threshold=5))
         now = datetime(2026, 7, 1, 12, 0, 0)
         res = engine.evaluate(
             DecisionInputs(now, 90, 30, 15000, 20.0, 45, paused=False)

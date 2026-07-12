@@ -42,7 +42,8 @@ class DecisionConfig:
     # Lux-driven daytime logic
     lux_low_threshold: float = 5000
     daytime_cloudy_position: int = 90
-    movement_threshold: int = 10
+    movement_threshold: int = 5
+    min_position: int = 3
 
 
 @dataclass
@@ -167,7 +168,7 @@ class DecisionEngine:
         reason: str,
         sun_at_window: bool,
     ) -> DecisionResult:
-        target = max(0, min(100, int(target_position)))
+        target = max(self.config.min_position, min(100, int(target_position)))
         threshold = self.config.movement_threshold
         return DecisionResult(abs(target - current_position) >= threshold, target, reason, sun_at_window)
 

@@ -129,7 +129,8 @@
           "night_close_position": "Night close position",
           "lux_low_threshold": "Low lux threshold",
           "daytime_cloudy_position": "Cloudy day position (%)",
-          "movement_threshold": "Movement threshold (%)"
+          "movement_threshold": "Movement threshold (%)",
+          "min_position": "Minimum position (%)"
         },
         "data_description": {
           "lux_close_summer": "Lux threshold to close blinds in summer. Higher = close only in bright sun. Recommended: 35000.",
@@ -145,7 +146,8 @@
           "night_close_position": "Night close target: 0 (Closed) or 100 (Privacy Mode).",
           "lux_low_threshold": "Lux below this means sun is not actually hitting the window (blocked by building, clouds).",
           "daytime_cloudy_position": "Blind position when it is overcast (lux below low threshold, sun not at window).",
-          "movement_threshold": "Minimum position difference (%) to trigger a move. Higher = fewer movements, less noise."
+          "movement_threshold": "Minimum position difference (%) to trigger a move. Higher = fewer movements, less noise.",
+          "min_position": "Motor never goes below this position. Prevents slats from flipping past closed. Set to 3-5 if your motor overshoots at 0%."
         }
       },
       "timing": {
