@@ -32,7 +32,16 @@ def install() -> None:
     class ConfigEntry:  # structural stub; only used as a type hint
         pass
 
+    class ConfigFlow:  # structural stub; config_flow.py subclasses this with domain=DOMAIN
+        def __init_subclass__(cls, domain=None, **kwargs) -> None:
+            super().__init_subclass__()
+
+    class OptionsFlow:  # structural stub
+        pass
+
     config_entries.ConfigEntry = ConfigEntry
+    config_entries.ConfigFlow = ConfigFlow
+    config_entries.OptionsFlow = OptionsFlow
 
     # -- homeassistant.core --
     core = types.ModuleType("homeassistant.core")
@@ -97,6 +106,11 @@ def install() -> None:
 
     storage.Store = Store
 
+    # config_flow.py's schema-building functions reference sel.* attributes,
+    # but only inside function bodies we never call in these tests — the
+    # submodule just needs to exist for the `import ... as sel` to succeed.
+    selector = types.ModuleType("homeassistant.helpers.selector")
+
     ha.config_entries = config_entries
     ha.core = core
     ha.util = util
@@ -104,6 +118,15 @@ def install() -> None:
     helpers.event = event
     helpers.dispatcher = dispatcher
     helpers.storage = storage
+    helpers.selector = selector
+
+    # -- voluptuous (only what's needed to import config_flow.py) --
+    voluptuous = types.ModuleType("voluptuous")
+
+    class Invalid(Exception):
+        pass
+
+    voluptuous.Invalid = Invalid
 
     sys.modules.update(
         {
@@ -116,6 +139,8 @@ def install() -> None:
             "homeassistant.helpers.event": event,
             "homeassistant.helpers.dispatcher": dispatcher,
             "homeassistant.helpers.storage": storage,
+            "homeassistant.helpers.selector": selector,
+            "voluptuous": voluptuous,
         }
     )
 
