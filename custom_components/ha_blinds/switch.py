@@ -98,7 +98,7 @@ class HaBlindsAutomationSwitch(HaBlindsBaseSwitch):
 
     @property
     def is_on(self) -> bool:
-        return not bool(self.coordinator._runtime.paused_until)
+        return not self.coordinator.is_paused
 
     @property
     def icon(self) -> str:
