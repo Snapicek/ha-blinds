@@ -13,17 +13,17 @@ A Home Assistant custom integration (`custom_components/ha_blinds`) that automat
 ## Commands
 
 ```bash
-# Run the full test suite (only tests logic.py — no HA runtime required)
+# Run the full test suite (no HA runtime required — see "Testing conventions")
 python3 -m pytest tests/ -v
 
-# Alternative runner (unittest discovery, same tests)
+# Alternative runner (unittest discovery, same tests; works without pytest installed)
 python3 tools/run_logic_tests.py
 
 # Run a single test
 python3 -m pytest tests/test_logic.py::TestDecisionEngine::test_night_close_triggers -v
 ```
 
-There is no build/lint step configured (no linter config or CI found in the repo). `pyproject.toml` only declares project metadata and pytest config (`testpaths = ["tests"]`).
+CI: `.github/workflows/tests.yml` runs `tools/run_logic_tests.py` on every PR and push to `main`, across Python 3.9/3.11/3.13. There is no build/lint step configured. `pyproject.toml` only declares project metadata and pytest config (`testpaths = ["tests"]`).
 
 ## Architecture
 
@@ -57,10 +57,16 @@ Follow this sequence (from `ARCHITECTURE.md`):
 5. Expose it in the options UI in `config_flow.py` if user-configurable
 6. Add a toggle switch entity in `switch.py` if the rule needs on/off control
 7. Write unit tests in `tests/test_logic.py`: one asserting the rule fires when expected, one asserting a higher-priority rule preempts it
+8. If step 3 added `_RuntimeState` tracking, also test the tick-to-tick state transitions in `tests/test_coordinator_evaluate.py` (see the privacy-hour and high-lux test classes there for the pattern)
 
 ### Testing conventions
 
-`tests/test_logic.py` constructs a `DecisionConfig` via a local `_cfg(**overrides)` helper with sane defaults, then calls `engine.evaluate(DecisionInputs(...))` and asserts on `res.should_move`, `res.target_position`, and `res.reason`. No HA mocks are used or needed — keep new logic tests in this pure style.
+The real `homeassistant` package is never installed for tests. There are two test styles:
+
+- **Pure logic tests** (`tests/test_logic.py`): construct a `DecisionConfig` via a local `_cfg(**overrides)` helper with sane defaults, then call `engine.evaluate(DecisionInputs(...))` and assert on `res.should_move`, `res.target_position`, and `res.reason`. No mocks at all — keep new logic tests in this pure style.
+- **Coordinator / config-flow tests** (`tests/test_coordinator_*.py`, `tests/test_config_flow_*.py`): call `ha_stubs.install()` **before** importing anything from `custom_components.ha_blinds.coordinator` or `.config_flow`. `tests/ha_stubs.py` registers minimal fake `homeassistant.*` and `voluptuous` modules plus in-memory fakes (`FakeHass`, `FakeEntry`, `FakeState`, `FakeServices` which records `cover.set_cover_position` calls, a working `Store`). Control time by monkeypatching `coordinator_module.dt_util.now`; `dt_util.as_local` is stubbed as identity, so test datetimes are treated as already-local. Async coordinator paths use `unittest.IsolatedAsyncioTestCase`.
+
+These currently cover: sunrise/sunset derivation from `sun.sun` next-event attributes, legacy config-value coercion (both coordinator and config-flow variants), the `_async_evaluate` orchestration loop (error backoff, step clamping, pause expiry, privacy/high-lux state tracking), and manual-override detection via context ids. If you extend the stubs, keep them minimal — stub only what the code under test actually touches.
 
 ## Versioning
 
