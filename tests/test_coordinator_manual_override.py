@@ -87,6 +87,46 @@ class TestManualOverrideDetection(unittest.IsolatedAsyncioTestCase):
         controller._on_cover_state_changed(event)
         self.assertEqual(controller.hass.created_tasks, [])
 
+    async def test_cover_coming_online_is_not_a_manual_move(self) -> None:
+        """HA restart / Zigbee reconnect: cover reports its position with no
+        previous state. Must NOT pause — this false positive silently disabled
+        automation after every restart (observed live: three restarts, three
+        self-pauses)."""
+        controller = _controller()
+        controller._listener_armed = True
+        event = FakeEvent({
+            "old_state": None,
+            "new_state": _cover_state(75, state="open", context=ha_stubs.FakeContext()),
+        })
+        controller._on_cover_state_changed(event)
+        self.assertEqual(controller.hass.created_tasks, [])
+
+    async def test_cover_leaving_unavailable_is_not_a_manual_move(self) -> None:
+        """Transition unavailable/unknown → open with a position is a reconnect,
+        not a human move."""
+        controller = _controller()
+        controller._listener_armed = True
+        for prior in ("unavailable", "unknown"):
+            with self.subTest(prior=prior):
+                event = FakeEvent({
+                    "old_state": _cover_state(None, state=prior),
+                    "new_state": _cover_state(75, state="open", context=ha_stubs.FakeContext()),
+                })
+                controller._on_cover_state_changed(event)
+                self.assertEqual(controller.hass.created_tasks, [])
+
+    async def test_missing_old_position_is_not_a_manual_move(self) -> None:
+        """Old state valid but had no current_position attribute yet — no
+        baseline to compare against, so no pause."""
+        controller = _controller()
+        controller._listener_armed = True
+        event = FakeEvent({
+            "old_state": ha_stubs.FakeState({}, state="open"),
+            "new_state": _cover_state(40, state="open", context=ha_stubs.FakeContext()),
+        })
+        controller._on_cover_state_changed(event)
+        self.assertEqual(controller.hass.created_tasks, [])
+
     async def test_genuine_manual_move_triggers_pause(self) -> None:
         controller = _controller()
         controller._listener_armed = True

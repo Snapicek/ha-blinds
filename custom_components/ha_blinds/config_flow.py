@@ -379,13 +379,18 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_COVER_ENTITY: user_input.get(CONF_COVER_ENTITY, config_entry.data.get(CONF_COVER_ENTITY)),
                 CONF_COVER_ENTITIES: user_input.get(CONF_COVER_ENTITIES, config_entry.data.get(CONF_COVER_ENTITIES, [])),
                 CONF_LUX_SENSOR: user_input.get(CONF_LUX_SENSOR, config_entry.data.get(CONF_LUX_SENSOR)),
-                CONF_TEMP_SENSOR: user_input.get(CONF_TEMP_SENSOR, config_entry.data.get(CONF_TEMP_SENSOR)),
                 CONF_WINDOW_AZIMUTH: user_input.get(CONF_WINDOW_AZIMUTH, config_entry.data.get(CONF_WINDOW_AZIMUTH)),
                 CONF_WINDOW_VIEW_LEFT: user_input.get(CONF_WINDOW_VIEW_LEFT, config_entry.data.get(CONF_WINDOW_VIEW_LEFT)),
                 CONF_WINDOW_VIEW_RIGHT: user_input.get(CONF_WINDOW_VIEW_RIGHT, config_entry.data.get(CONF_WINDOW_VIEW_RIGHT)),
             }
+            # Temp sensor is optional: submitting the form with the field cleared
+            # removes it (data= replaces the whole dict, unlike data_updates=
+            # which merges and can never delete a key).
+            updated_data.pop(CONF_TEMP_SENSOR, None)
+            if user_input.get(CONF_TEMP_SENSOR):
+                updated_data[CONF_TEMP_SENSOR] = user_input[CONF_TEMP_SENSOR]
             update_kwargs: dict[str, Any] = {
-                "data_updates": updated_data,
+                "data": updated_data,
                 "reason": "reconfigure_successful",
             }
             if new_cover and new_cover != old_cover:

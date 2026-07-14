@@ -70,7 +70,7 @@ These currently cover: sunrise/sunset derivation from `sun.sun` next-event attri
 
 ## Versioning
 
-Three files carry independent version numbers that must be kept in sync manually for the integration itself: `pyproject.toml`, `custom_components/ha_blinds/manifest.json`, and `hacs.json`. `addons/ha-blinds/addon.yaml` has its own separate version line (add-on packaging version, not the integration version).
+Two files carry the integration version and must be kept in sync manually: `pyproject.toml` and `custom_components/ha_blinds/manifest.json` (`hacs.json` intentionally has no version field — HACS releases are driven by git tags). `addons/ha-blinds/addon.yaml` has its own separate version line (add-on packaging version, not the integration version).
 
 ## Key conventions
 

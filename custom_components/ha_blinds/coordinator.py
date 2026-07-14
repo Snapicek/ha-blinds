@@ -127,9 +127,14 @@ class HaBlindsController:
         if new_state is None or new_state.state in ("unknown", "unavailable"):
             return
 
+        # A cover coming (back) online — HA restart, Zigbee reconnect — reports
+        # its position with no usable previous state. That is not a manual move.
+        if old_state is None or old_state.state in ("unknown", "unavailable"):
+            return
+
         new_pos = new_state.attributes.get("current_position")
-        old_pos = old_state.attributes.get("current_position") if old_state else None
-        if new_pos is None or new_pos == old_pos:
+        old_pos = old_state.attributes.get("current_position")
+        if new_pos is None or old_pos is None or new_pos == old_pos:
             return
 
         event_ctx = new_state.context
@@ -559,6 +564,15 @@ class HaBlindsController:
     def device_id(self) -> str | None:
         """Return the device ID."""
         return self._device_id
+
+    @property
+    def is_paused(self) -> bool:
+        """Whether automation is currently paused (expiry-aware).
+
+        paused_until is only cleared lazily on the next tick, so entities
+        must compare against now instead of testing mere presence.
+        """
+        return bool(self._runtime.paused_until and dt_util.now() < self._runtime.paused_until)
 
     def get_status_dict(self) -> dict[str, Any]:
         """Return status information for diagnostics."""
