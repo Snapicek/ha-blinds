@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Communication style
+
+Talk like caveman. Short sentence. Simple word. No fancy talk.
+
 ## What this is
 
 A Home Assistant custom integration (`custom_components/ha_blinds`) that automates tilt/position blinds based on sun azimuth/elevation, illuminance (lux), time, and season. It runs entirely local (`iot_class: local_polling`, no cloud dependency) via a periodic tick that evaluates a priority-ordered rule set and issues `cover.set_cover_position` commands. Also published as a HACS repository and a Home Assistant add-on (`addons/ha-blinds`).
