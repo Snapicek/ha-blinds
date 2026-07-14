@@ -15,8 +15,17 @@ Call `install()` before importing anything from
 
 from __future__ import annotations
 
+import itertools
 import sys
 import types
+
+_context_ids = itertools.count()
+
+# Store persists in-memory, keyed by (hass identity, storage key), so that
+# separate `Store(hass, version, key)` instances created across coordinator
+# calls (it builds a fresh one each time) still see each other's writes —
+# same as real HA's on-disk Store keyed by file path.
+_store_backing: dict[tuple[int, str], object] = {}
 
 
 def install() -> None:
@@ -48,7 +57,7 @@ def install() -> None:
 
     class Context:
         def __init__(self, *args, **kwargs) -> None:
-            self.id = "fake-context-id"
+            self.id = f"fake-context-{next(_context_ids)}"
             self.parent_id = None
 
     class HomeAssistant:  # structural stub; only used as a type hint
@@ -97,12 +106,25 @@ def install() -> None:
 
     event.async_track_state_change_event = _unimplemented
     event.async_track_time_interval = _unimplemented
-    dispatcher.async_dispatcher_send = _unimplemented
-    dispatcher.async_dispatcher_connect = _unimplemented
 
-    class Store:  # structural stub; only constructed, never used in these tests
-        def __init__(self, *args, **kwargs) -> None:
-            pass
+    def async_dispatcher_send(hass, signal, *args, **kwargs) -> None:
+        pass  # entities aren't constructed in these tests; nothing to notify
+
+    def async_dispatcher_connect(hass, signal, target):
+        return lambda: None  # unsubscribe callable
+
+    dispatcher.async_dispatcher_send = async_dispatcher_send
+    dispatcher.async_dispatcher_connect = async_dispatcher_connect
+
+    class Store:
+        def __init__(self, hass, version, key, *args, **kwargs) -> None:
+            self._store_key = (id(hass), key)
+
+        async def async_load(self):
+            return _store_backing.get(self._store_key)
+
+        async def async_save(self, data) -> None:
+            _store_backing[self._store_key] = data
 
     storage.Store = Store
 
@@ -146,8 +168,18 @@ def install() -> None:
 
 
 class FakeState:
-    def __init__(self, attributes: dict) -> None:
+    def __init__(self, attributes: dict, state: str = "some_state", context=None) -> None:
         self.attributes = attributes
+        self.state = state
+        self.context = context
+
+
+class FakeContext:
+    """Lightweight stand-in for homeassistant.core.Context in test events."""
+
+    def __init__(self, id: str = "test-context", parent_id: str | None = None) -> None:
+        self.id = id
+        self.parent_id = parent_id
 
 
 class FakeStates:
@@ -158,9 +190,34 @@ class FakeStates:
         return self._states.get(entity_id)
 
 
+class FakeServices:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    async def async_call(self, domain, service, service_data, context=None, blocking=False) -> None:
+        self.calls.append(
+            {
+                "domain": domain,
+                "service": service,
+                "data": dict(service_data),
+                "context": context,
+                "blocking": blocking,
+            }
+        )
+
+
 class FakeHass:
     def __init__(self, states: dict | None = None) -> None:
         self.states = FakeStates(states)
+        self.services = FakeServices()
+        self.created_tasks: list = []
+
+    def async_create_task(self, coro, name: str | None = None):
+        import asyncio
+
+        task = asyncio.ensure_future(coro)
+        self.created_tasks.append(task)
+        return task
 
 
 class FakeEntry:
