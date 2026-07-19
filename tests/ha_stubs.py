@@ -41,9 +41,59 @@ def install() -> None:
     class ConfigEntry:  # structural stub; only used as a type hint
         pass
 
-    class ConfigFlow:  # structural stub; config_flow.py subclasses this with domain=DOMAIN
+    class AbortFlow(Exception):
+        """Mirrors homeassistant.data_entry_flow.AbortFlow closely enough to
+        test _abort_if_unique_id_configured's collision path — our code never
+        imports AbortFlow directly, it just lets the base class raise it."""
+
+        def __init__(self, reason: str) -> None:
+            self.reason = reason
+            super().__init__(reason)
+
+    class ConfigFlow:
+        """Structural + behavioral stub covering only what
+        async_step_reconfigure's *submission* path touches (not the
+        show-form path, which needs real voluptuous/selector — out of scope
+        here). Test wiring: set flow._reconfigure_entry and, to simulate a
+        unique_id collision, flow._simulate_unique_id_collision = True.
+        """
+
         def __init_subclass__(cls, domain=None, **kwargs) -> None:
             super().__init_subclass__()
+
+        def __init__(self) -> None:
+            self.context: dict = {}
+            self.hass = None
+            self._reconfigure_entry = None
+            self._simulate_unique_id_collision = False
+            self.unique_id = None
+
+        def _get_reconfigure_entry(self):
+            return self._reconfigure_entry
+
+        async def async_set_unique_id(self, unique_id):
+            self.unique_id = unique_id
+            return None
+
+        def _abort_if_unique_id_configured(self, updates=None, reload_on_update=True) -> None:
+            if self._simulate_unique_id_collision:
+                raise AbortFlow("already_configured")
+
+        def async_update_and_abort(self, entry, **kwargs):
+            """The non-reloading sibling of async_update_reload_and_abort —
+            updates the entry and aborts, without itself triggering a
+            reload. Records what it was called with so tests can assert the
+            reload-triggering variant was NOT used."""
+            if "data" in kwargs:
+                entry.data = dict(kwargs["data"])
+            if "options" in kwargs:
+                entry.options = dict(kwargs["options"])
+            if "unique_id" in kwargs:
+                entry.unique_id = kwargs["unique_id"]
+            return {"type": "abort", "reason": kwargs.get("reason")}
+
+        def async_show_form(self, **kwargs):
+            return {"type": "form", **kwargs}
 
     class OptionsFlow:  # structural stub
         pass
@@ -51,6 +101,7 @@ def install() -> None:
     config_entries.ConfigEntry = ConfigEntry
     config_entries.ConfigFlow = ConfigFlow
     config_entries.OptionsFlow = OptionsFlow
+    config_entries.AbortFlow = AbortFlow
 
     # -- homeassistant.components.switch --
     components = types.ModuleType("homeassistant.components")

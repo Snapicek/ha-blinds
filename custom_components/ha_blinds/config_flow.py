@@ -395,7 +395,13 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             if new_cover and new_cover != old_cover:
                 update_kwargs["unique_id"] = new_cover
-            return self.async_update_reload_and_abort(
+            # async_update_and_abort (not the _reload_ variant): the entry
+            # already has an update listener (__init__.py) that reloads on
+            # any data/options change. Also forcing a reload here raced that
+            # listener's reload — HA core now deprecates this combination
+            # (warns since 2026.6, hard error in 2026.12) for exactly that
+            # reason. Let the listener be the only reload trigger.
+            return self.async_update_and_abort(
                 config_entry,
                 **update_kwargs,
             )
