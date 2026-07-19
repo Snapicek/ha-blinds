@@ -133,15 +133,18 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Reload a config entry."""
-    await async_unload_entry(hass, entry)
-    return await async_setup_entry(hass, entry)
-
-
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload config entry when options change."""
+    """Reload config entry when options change.
+
+    Must go through hass.config_entries.async_reload() rather than calling
+    async_unload_entry/async_setup_entry directly: async_reload() takes
+    entry.setup_lock, which is what keeps this listener from racing another
+    reload triggered by the same data/options change (e.g. config_flow's
+    async_update_reload_and_abort, or switch.py calling async_reload
+    explicitly) — two unlocked concurrent unload/setup cycles for the same
+    entry is what caused HA to hang.
+    """
     try:
-        await async_reload_entry(hass, entry)
+        await hass.config_entries.async_reload(entry.entry_id)
     except Exception:
         _LOGGER.exception("Failed to reload HA Blinds entry %s after options update", entry.entry_id)
