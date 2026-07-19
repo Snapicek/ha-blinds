@@ -52,6 +52,16 @@ def install() -> None:
     config_entries.ConfigFlow = ConfigFlow
     config_entries.OptionsFlow = OptionsFlow
 
+    # -- homeassistant.components.switch --
+    components = types.ModuleType("homeassistant.components")
+    components_switch = types.ModuleType("homeassistant.components.switch")
+
+    class SwitchEntity:  # structural stub; switch.py subclasses this
+        pass
+
+    components_switch.SwitchEntity = SwitchEntity
+    components.switch = components_switch
+
     # -- homeassistant.core --
     core = types.ModuleType("homeassistant.core")
 
@@ -107,6 +117,13 @@ def install() -> None:
     event.async_track_state_change_event = _unimplemented
     event.async_track_time_interval = _unimplemented
 
+    entity_platform = types.ModuleType("homeassistant.helpers.entity_platform")
+
+    class AddEntitiesCallback:  # structural stub; only used as a type hint
+        pass
+
+    entity_platform.AddEntitiesCallback = AddEntitiesCallback
+
     def async_dispatcher_send(hass, signal, *args, **kwargs) -> None:
         pass  # entities aren't constructed in these tests; nothing to notify
 
@@ -137,10 +154,12 @@ def install() -> None:
     ha.core = core
     ha.util = util
     ha.helpers = helpers
+    ha.components = components
     helpers.event = event
     helpers.dispatcher = dispatcher
     helpers.storage = storage
     helpers.selector = selector
+    helpers.entity_platform = entity_platform
 
     # -- voluptuous (only what's needed to import config_flow.py) --
     voluptuous = types.ModuleType("voluptuous")
@@ -162,6 +181,9 @@ def install() -> None:
             "homeassistant.helpers.dispatcher": dispatcher,
             "homeassistant.helpers.storage": storage,
             "homeassistant.helpers.selector": selector,
+            "homeassistant.helpers.entity_platform": entity_platform,
+            "homeassistant.components": components,
+            "homeassistant.components.switch": components_switch,
             "voluptuous": voluptuous,
         }
     )
@@ -206,11 +228,40 @@ class FakeServices:
         )
 
 
+class FakeConfigEntries:
+    """Records reload calls and mimics async_update_entry's listener-firing.
+
+    Real HA fires each of an entry's update listeners via
+    hass.async_create_task (fire-and-forget) whenever async_update_entry
+    changes data/options; async_reload is the only thing that serializes
+    with entry.setup_lock. Tests use `reload_calls` to assert a data/options
+    change results in exactly one reload, not a race between this and some
+    other caller triggering its own reload on top.
+    """
+
+    def __init__(self, hass: "FakeHass") -> None:
+        self._hass = hass
+        self.reload_calls: list[str] = []
+
+    def async_update_entry(self, entry: "FakeEntry", data: dict | None = None, options: dict | None = None) -> None:
+        if data is not None:
+            entry.data = dict(data)
+        if options is not None:
+            entry.options = dict(options)
+        for listener in list(entry._update_listeners):
+            self._hass.async_create_task(listener(self._hass, entry))
+
+    async def async_reload(self, entry_id: str) -> bool:
+        self.reload_calls.append(entry_id)
+        return True
+
+
 class FakeHass:
     def __init__(self, states: dict | None = None) -> None:
         self.states = FakeStates(states)
         self.services = FakeServices()
         self.created_tasks: list = []
+        self.config_entries = FakeConfigEntries(self)
 
     def async_create_task(self, coro, name: str | None = None):
         import asyncio
@@ -225,3 +276,12 @@ class FakeEntry:
         self.data = data or {}
         self.options = options or {}
         self.entry_id = entry_id
+        self._update_listeners: list = []
+        self._unload_callbacks: list = []
+
+    def add_update_listener(self, listener):
+        self._update_listeners.append(listener)
+        return lambda: self._update_listeners.remove(listener)
+
+    def async_on_unload(self, callback) -> None:
+        self._unload_callbacks.append(callback)
