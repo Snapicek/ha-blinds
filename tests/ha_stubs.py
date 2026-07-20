@@ -103,15 +103,27 @@ def install() -> None:
     config_entries.OptionsFlow = OptionsFlow
     config_entries.AbortFlow = AbortFlow
 
-    # -- homeassistant.components.switch --
+    # -- homeassistant.components.switch/sensor/button --
     components = types.ModuleType("homeassistant.components")
     components_switch = types.ModuleType("homeassistant.components.switch")
+    components_sensor = types.ModuleType("homeassistant.components.sensor")
+    components_button = types.ModuleType("homeassistant.components.button")
 
     class SwitchEntity:  # structural stub; switch.py subclasses this
         pass
 
+    class SensorEntity:  # structural stub; sensor.py subclasses this
+        pass
+
+    class ButtonEntity:  # structural stub; button.py subclasses this
+        pass
+
     components_switch.SwitchEntity = SwitchEntity
+    components_sensor.SensorEntity = SensorEntity
+    components_button.ButtonEntity = ButtonEntity
     components.switch = components_switch
+    components.sensor = components_sensor
+    components.button = components_button
 
     # -- homeassistant.core --
     core = types.ModuleType("homeassistant.core")
@@ -124,11 +136,16 @@ def install() -> None:
     class HomeAssistant:  # structural stub; only used as a type hint
         pass
 
+    class ServiceCall:  # structural stub; only .data is read by __init__.py's handlers
+        def __init__(self, data: dict | None = None) -> None:
+            self.data = data or {}
+
     def callback(func):
         return func
 
     core.Context = Context
     core.HomeAssistant = HomeAssistant
+    core.ServiceCall = ServiceCall
     core.callback = callback
 
     # -- homeassistant.util / homeassistant.util.dt --
@@ -201,6 +218,14 @@ def install() -> None:
     # submodule just needs to exist for the `import ... as sel` to succeed.
     selector = types.ModuleType("homeassistant.helpers.selector")
 
+    # __init__.py's async_setup builds vol.Schema(...) service schemas at
+    # call time (not just at import time), so unlike selector above these
+    # need to actually work — but only enough to construct the schema
+    # object; tests invoke the registered service handlers directly and
+    # never call the schema on data, so no real validation is implemented.
+    config_validation = types.ModuleType("homeassistant.helpers.config_validation")
+    config_validation.string = str
+
     ha.config_entries = config_entries
     ha.core = core
     ha.util = util
@@ -211,14 +236,46 @@ def install() -> None:
     helpers.storage = storage
     helpers.selector = selector
     helpers.entity_platform = entity_platform
+    helpers.config_validation = config_validation
 
-    # -- voluptuous (only what's needed to import config_flow.py) --
+    # -- voluptuous (only what's needed to import config_flow.py and to
+    # construct __init__.py's service schemas) --
     voluptuous = types.ModuleType("voluptuous")
 
     class Invalid(Exception):
         pass
 
+    class Optional:
+        """Marker for an optional schema key; only .key matters here since
+        schemas are never actually validated in these tests."""
+
+        def __init__(self, key, default=None) -> None:
+            self.key = key
+            self.default = default
+
+        def __hash__(self):
+            return hash(self.key)
+
+        def __eq__(self, other) -> bool:
+            return self.key == getattr(other, "key", other)
+
+    class Schema:
+        def __init__(self, schema, *args, **kwargs) -> None:
+            self.schema = schema
+
+        def __call__(self, data):
+            return data
+
+    def Coerce(type_):
+        def _validator(value):
+            return type_(value)
+
+        return _validator
+
     voluptuous.Invalid = Invalid
+    voluptuous.Optional = Optional
+    voluptuous.Schema = Schema
+    voluptuous.Coerce = Coerce
 
     sys.modules.update(
         {
@@ -233,8 +290,11 @@ def install() -> None:
             "homeassistant.helpers.storage": storage,
             "homeassistant.helpers.selector": selector,
             "homeassistant.helpers.entity_platform": entity_platform,
+            "homeassistant.helpers.config_validation": config_validation,
             "homeassistant.components": components,
             "homeassistant.components.switch": components_switch,
+            "homeassistant.components.sensor": components_sensor,
+            "homeassistant.components.button": components_button,
             "voluptuous": voluptuous,
         }
     )
@@ -266,6 +326,7 @@ class FakeStates:
 class FakeServices:
     def __init__(self) -> None:
         self.calls: list[dict] = []
+        self._handlers: dict[tuple[str, str], object] = {}
 
     async def async_call(self, domain, service, service_data, context=None, blocking=False) -> None:
         self.calls.append(
@@ -277,6 +338,12 @@ class FakeServices:
                 "blocking": blocking,
             }
         )
+
+    def has_service(self, domain: str, service: str) -> bool:
+        return (domain, service) in self._handlers
+
+    def async_register(self, domain: str, service: str, handler, schema=None) -> None:
+        self._handlers[(domain, service)] = handler
 
 
 class FakeConfigEntries:
@@ -313,6 +380,7 @@ class FakeHass:
         self.services = FakeServices()
         self.created_tasks: list = []
         self.config_entries = FakeConfigEntries(self)
+        self.data: dict = {}
 
     def async_create_task(self, coro, name: str | None = None):
         import asyncio
