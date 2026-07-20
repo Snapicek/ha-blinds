@@ -77,7 +77,7 @@ class HaBlindsStateSensor(HaBlindsBaseSensor):
 
     @property
     def state(self) -> str:
-        if self.coordinator._runtime.paused_until:
+        if self.coordinator.is_paused:
             return "paused"
         return "active"
 

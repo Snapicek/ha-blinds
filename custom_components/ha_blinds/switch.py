@@ -73,13 +73,20 @@ class HaBlindsBaseSwitch(SwitchEntity):
         return self.coordinator._cfg(key)
 
     async def _async_update_config(self, key: str, value: bool) -> None:
-        """Update configuration."""
+        """Update configuration.
+
+        Only calls async_update_entry — that alone fires the entry's
+        registered update listener (_async_reload_entry in __init__.py),
+        which reloads the entry exactly once. A second, explicit
+        async_reload() call here used to race that listener's reload
+        (neither serialized by entry.setup_lock the way a single
+        hass.config_entries.async_reload() call would be), which could hang
+        Home Assistant.
+        """
         try:
             options = dict(self.entry.options)
             options[key] = value
             self.hass.config_entries.async_update_entry(self.entry, options=options)
-            # Trigger immediate evaluation with new config
-            await self.hass.config_entries.async_reload(self.entry.entry_id)
         except Exception as err:
             _LOGGER.error("Error updating config: %s", err)
             raise
@@ -98,7 +105,7 @@ class HaBlindsAutomationSwitch(HaBlindsBaseSwitch):
 
     @property
     def is_on(self) -> bool:
-        return not bool(self.coordinator._runtime.paused_until)
+        return not self.coordinator.is_paused
 
     @property
     def icon(self) -> str:

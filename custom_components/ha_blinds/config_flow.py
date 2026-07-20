@@ -381,18 +381,29 @@ class HaBlindsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_COVER_ENTITY: user_input.get(CONF_COVER_ENTITY, config_entry.data.get(CONF_COVER_ENTITY)),
                 CONF_COVER_ENTITIES: user_input.get(CONF_COVER_ENTITIES, config_entry.data.get(CONF_COVER_ENTITIES, [])),
                 CONF_LUX_SENSOR: user_input.get(CONF_LUX_SENSOR, config_entry.data.get(CONF_LUX_SENSOR)),
-                CONF_TEMP_SENSOR: user_input.get(CONF_TEMP_SENSOR, config_entry.data.get(CONF_TEMP_SENSOR)),
                 CONF_WINDOW_AZIMUTH: user_input.get(CONF_WINDOW_AZIMUTH, config_entry.data.get(CONF_WINDOW_AZIMUTH)),
                 CONF_WINDOW_VIEW_LEFT: user_input.get(CONF_WINDOW_VIEW_LEFT, config_entry.data.get(CONF_WINDOW_VIEW_LEFT)),
                 CONF_WINDOW_VIEW_RIGHT: user_input.get(CONF_WINDOW_VIEW_RIGHT, config_entry.data.get(CONF_WINDOW_VIEW_RIGHT)),
             }
+            # Temp sensor is optional: submitting the form with the field cleared
+            # removes it (data= replaces the whole dict, unlike data_updates=
+            # which merges and can never delete a key).
+            updated_data.pop(CONF_TEMP_SENSOR, None)
+            if user_input.get(CONF_TEMP_SENSOR):
+                updated_data[CONF_TEMP_SENSOR] = user_input[CONF_TEMP_SENSOR]
             update_kwargs: dict[str, Any] = {
-                "data_updates": updated_data,
+                "data": updated_data,
                 "reason": "reconfigure_successful",
             }
             if new_cover and new_cover != old_cover:
                 update_kwargs["unique_id"] = new_cover
-            return self.async_update_reload_and_abort(
+            # async_update_and_abort (not the _reload_ variant): the entry
+            # already has an update listener (__init__.py) that reloads on
+            # any data/options change. Also forcing a reload here raced that
+            # listener's reload — HA core now deprecates this combination
+            # (warns since 2026.6, hard error in 2026.12) for exactly that
+            # reason. Let the listener be the only reload trigger.
+            return self.async_update_and_abort(
                 config_entry,
                 **update_kwargs,
             )
