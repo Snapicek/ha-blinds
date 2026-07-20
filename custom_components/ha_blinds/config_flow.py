@@ -37,6 +37,9 @@ from .const import (
     CONF_EARLIEST_OPEN_MINUTE,
     CONF_LUX_LOW_THRESHOLD,
     CONF_DAYTIME_CLOUDY_POSITION,
+    CONF_DUSK_LUX_THRESHOLD,
+    CONF_DUSK_WINDOW_MINUTES,
+    CONF_MIN_POSITION,
     CONF_MOVEMENT_THRESHOLD,
     CONF_TEMP_SENSOR,
     CONF_TEMP_THRESHOLD,
@@ -193,7 +196,10 @@ def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
         CONF_EARLIEST_OPEN_MINUTE,
         CONF_LUX_LOW_THRESHOLD,
         CONF_DAYTIME_CLOUDY_POSITION,
+        CONF_MIN_POSITION,
         CONF_MOVEMENT_THRESHOLD,
+        CONF_DUSK_LUX_THRESHOLD,
+        CONF_DUSK_WINDOW_MINUTES,
     )
     for key in int_keys:
         sanitized[key] = _coerce_int_default(sanitized.get(key), int(DEFAULTS[key]))
@@ -309,6 +315,8 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_ENABLE_SUNSET_CLOSING, default=defaults[CONF_ENABLE_SUNSET_CLOSING]): sel.BooleanSelector(),
             vol.Required(CONF_SUNSET_OFFSET_MINUTES, default=defaults[CONF_SUNSET_OFFSET_MINUTES]): sel.NumberSelector(sel.NumberSelectorConfig(min=-120, max=120, step=1, mode=sel.NumberSelectorMode.BOX)),
             vol.Required(CONF_SUNRISE_OFFSET_MINUTES, default=defaults[CONF_SUNRISE_OFFSET_MINUTES]): sel.NumberSelector(sel.NumberSelectorConfig(min=-120, max=120, step=1, mode=sel.NumberSelectorMode.BOX)),
+            vol.Required(CONF_DUSK_LUX_THRESHOLD, default=defaults[CONF_DUSK_LUX_THRESHOLD]): vol.All(vol.Coerce(int), vol.Range(min=100, max=20000)),
+            vol.Required(CONF_DUSK_WINDOW_MINUTES, default=defaults[CONF_DUSK_WINDOW_MINUTES]): sel.NumberSelector(sel.NumberSelectorConfig(min=0, max=180, step=5, mode=sel.NumberSelectorMode.BOX)),
             # Feature toggles
             vol.Required(CONF_ENABLE_PRIVACY_HOUR, default=defaults[CONF_ENABLE_PRIVACY_HOUR]): sel.BooleanSelector(),
             vol.Required(CONF_ENABLE_HIGH_LUX_PROTECTION, default=defaults[CONF_ENABLE_HIGH_LUX_PROTECTION]): sel.BooleanSelector(),
@@ -549,6 +557,10 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 CONF_MOVEMENT_THRESHOLD,
                 default=_coerce_int_default(defaults.get(CONF_MOVEMENT_THRESHOLD), int(DEFAULTS[CONF_MOVEMENT_THRESHOLD])),
             ): vol.All(vol.Coerce(int), vol.Range(min=2, max=30)),
+            vol.Required(
+                CONF_MIN_POSITION,
+                default=_coerce_int_default(defaults.get(CONF_MIN_POSITION), int(DEFAULTS[CONF_MIN_POSITION])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=20)),
         }
         return self._show_schema_form(
             step_id="thresholds",
@@ -627,6 +639,14 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 CONF_SUNRISE_OFFSET_MINUTES,
                 default=_coerce_int_default(defaults.get(CONF_SUNRISE_OFFSET_MINUTES), int(DEFAULTS[CONF_SUNRISE_OFFSET_MINUTES])),
             ): sel.NumberSelector(sel.NumberSelectorConfig(min=-120, max=120, step=1, mode=sel.NumberSelectorMode.BOX)),
+            vol.Required(
+                CONF_DUSK_LUX_THRESHOLD,
+                default=_coerce_int_default(defaults.get(CONF_DUSK_LUX_THRESHOLD), int(DEFAULTS[CONF_DUSK_LUX_THRESHOLD])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=100, max=20000)),
+            vol.Required(
+                CONF_DUSK_WINDOW_MINUTES,
+                default=_coerce_int_default(defaults.get(CONF_DUSK_WINDOW_MINUTES), int(DEFAULTS[CONF_DUSK_WINDOW_MINUTES])),
+            ): sel.NumberSelector(sel.NumberSelectorConfig(min=0, max=180, step=5, mode=sel.NumberSelectorMode.BOX)),
             vol.Required(
                 CONF_EARLIEST_OPEN_HOUR,
                 default=_hour_default_label(defaults.get(CONF_EARLIEST_OPEN_HOUR, DEFAULTS[CONF_EARLIEST_OPEN_HOUR]), DEFAULTS[CONF_EARLIEST_OPEN_HOUR]),

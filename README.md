@@ -62,18 +62,20 @@ When the sun faces the window, slat angle is adjusted based on elevation:
 
 | Elevation | Position | Reason |
 |---|---|---|
-| < 10° | 0% (closed) | Direct eye-level glare |
+| < 10° | min_position (closed) | Direct eye-level glare |
 | 10–25° | 50% | Low angle — partial block |
 | ≥ 25° | 75% | High sun — open |
 
 ### High lux protection
-When lux exceeds the close threshold and the sun is at the window, blinds close to 0% after a debounce delay. Reopens automatically (via elevation tracking) when lux drops.
+When lux exceeds the close threshold and the sun is at the window, blinds close to `min_position` after a debounce delay. Reopens automatically (via elevation tracking) when lux drops.
 
 ### Heat protection *(optional)*
 During configured hours in summer, blinds close to a fixed position regardless of lux. Requires a temperature sensor and temperature above the threshold.
 
 ### Sunset closing *(optional)*
 Closes blinds at `actual_sunset + sunset_offset_minutes`. Keeps them closed until `actual_sunrise + sunrise_offset_minutes` (sleep-in support). Both offsets default to 0.
+
+Before the hard cutoff, **dusk closing** watches lux instead: within `dusk_window_minutes` of sunset, if lux drops below `dusk_lux_threshold`, blinds close early. This makes closing feel natural for windows shaded early by a neighboring building or terrain — direct light can disappear well before astronomical sunset. `sunset_closing` still applies afterwards as a fallback in case the lux sensor is missing or stays bright.
 
 ### Privacy hour *(optional)*
 From a configured evening hour, blinds close and stay closed for `privacy_duration_minutes`. Separate thresholds for winter and summer.
@@ -101,7 +103,8 @@ Options are split into four menus: **Thresholds**, **Timing**, **Sunset**, **Fea
 | `daytime_open_position` | 70% | Position when sun is not at window (morning/evening) |
 | `lux_low_threshold` | 5000 lx | Below this, sun is considered blocked (building, clouds) |
 | `daytime_cloudy_position` | 90% | Position when overcast (lux below low threshold) |
-| `movement_threshold` | 10% | Minimum position difference to trigger a move (reduces noise) |
+| `movement_threshold` | 5% | Minimum position difference to trigger a move (reduces noise) |
+| `min_position` | 3% | Motor never goes below this position (prevents slat flip on overshoot) |
 
 ### Timing
 
@@ -116,9 +119,11 @@ Options are split into four menus: **Thresholds**, **Timing**, **Sunset**, **Fea
 
 | Option | Default | Description |
 |---|---|---|
-| `enable_sunset_closing` | off | Enable sunset/sunrise feature |
+| `enable_sunset_closing` | off | Enable sunset/sunrise feature (also gates dusk closing) |
 | `sunset_offset_minutes` | 0 | Close this many minutes after actual sunset (negative = before) |
 | `sunrise_offset_minutes` | 0 | Open this many minutes after actual sunrise (sleep-in) |
+| `dusk_lux_threshold` | 1000 lx | Below this, close early during the dusk window (before sunset_time) |
+| `dusk_window_minutes` | 60 | How long before sunset_time the dusk-lux check is active |
 | `earliest_open_hour` | 7 | Blinds never open before this hour (hard floor) |
 | `earliest_open_minute` | 30 | Minute part of earliest open time |
 
