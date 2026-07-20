@@ -23,8 +23,10 @@ from custom_components.ha_blinds.const import (
     CONF_LUX_SENSOR,
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
+    CONF_MIN_POSITION,
     CONF_SUMMER_PRIVACY_HOUR,
     CONF_TEMP_SENSOR,
+    DEFAULTS,
 )
 from custom_components.ha_blinds.coordinator import HaBlindsController
 
@@ -107,7 +109,8 @@ class TestMovement(unittest.IsolatedAsyncioTestCase):
         await controller._async_evaluate()
 
         call = controller.hass.services.calls[0]
-        self.assertEqual(call["data"]["position"], 0)
+        # Target is 0 but clamps to min_position (prevents slat flip on overshoot).
+        self.assertEqual(call["data"]["position"], DEFAULTS[CONF_MIN_POSITION])
 
     async def test_no_move_issues_no_service_call(self) -> None:
         """current_position already at the target (within movement_threshold)."""
