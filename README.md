@@ -75,6 +75,8 @@ During configured hours in summer, blinds close to a fixed position regardless o
 ### Sunset closing *(optional)*
 Closes blinds at `actual_sunset + sunset_offset_minutes`. Keeps them closed until `actual_sunrise + sunrise_offset_minutes` (sleep-in support). Both offsets default to 0.
 
+Before the hard cutoff, **dusk closing** watches lux instead: within `dusk_window_minutes` of sunset, if lux drops below `dusk_lux_threshold`, blinds close early. This makes closing feel natural for windows shaded early by a neighboring building or terrain — direct light can disappear well before astronomical sunset. `sunset_closing` still applies afterwards as a fallback in case the lux sensor is missing or stays bright.
+
 ### Privacy hour *(optional)*
 From a configured evening hour, blinds close and stay closed for `privacy_duration_minutes`. Separate thresholds for winter and summer.
 
@@ -117,9 +119,11 @@ Options are split into four menus: **Thresholds**, **Timing**, **Sunset**, **Fea
 
 | Option | Default | Description |
 |---|---|---|
-| `enable_sunset_closing` | off | Enable sunset/sunrise feature |
+| `enable_sunset_closing` | off | Enable sunset/sunrise feature (also gates dusk closing) |
 | `sunset_offset_minutes` | 0 | Close this many minutes after actual sunset (negative = before) |
 | `sunrise_offset_minutes` | 0 | Open this many minutes after actual sunrise (sleep-in) |
+| `dusk_lux_threshold` | 1000 lx | Below this, close early during the dusk window (before sunset_time) |
+| `dusk_window_minutes` | 60 | How long before sunset_time the dusk-lux check is active |
 | `earliest_open_hour` | 7 | Blinds never open before this hour (hard floor) |
 | `earliest_open_minute` | 30 | Minute part of earliest open time |
 
