@@ -48,6 +48,10 @@ CONF_DAYTIME_CLOUDY_POSITION = "daytime_cloudy_position"
 CONF_MOVEMENT_THRESHOLD = "movement_threshold"
 CONF_MIN_POSITION = "min_position"
 
+# Lux-driven dusk closing (natural close before the hard sunset cutoff)
+CONF_DUSK_LUX_THRESHOLD = "dusk_lux_threshold"
+CONF_DUSK_WINDOW_MINUTES = "dusk_window_minutes"
+
 SERVICE_PAUSE = "pause"
 SERVICE_RESUME = "resume"
 SERVICE_EVALUATE_NOW = "evaluate_now"
@@ -92,5 +96,8 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_DAYTIME_CLOUDY_POSITION: 90,
     CONF_MOVEMENT_THRESHOLD: 5,
     CONF_MIN_POSITION: 3,
+    # Lux-driven dusk closing
+    CONF_DUSK_LUX_THRESHOLD: 1000,
+    CONF_DUSK_WINDOW_MINUTES: 60,
 }
 

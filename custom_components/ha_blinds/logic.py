@@ -44,6 +44,9 @@ class DecisionConfig:
     daytime_cloudy_position: int = 90
     movement_threshold: int = 5
     min_position: int = 3
+    # Lux-driven dusk closing
+    dusk_lux_threshold: float = 1000
+    dusk_window_minutes: int = 60
 
 
 @dataclass
@@ -91,7 +94,16 @@ class DecisionEngine:
         if inputs.now < earliest:
             return self._result(inputs.current_position, self.config.night_close_position, "too_early", sun_at_window)
 
-        # Sunset closing
+        # Dusk closing: lux-driven, so it feels natural for windows shaded early by
+        # neighboring buildings — closes before the hard sunset cutoff once it's
+        # actually getting dark, instead of waiting for the astronomical sunset time.
+        if self.config.enable_sunset_closing and inputs.sunset_time is not None and inputs.lux is not None:
+            dusk_start = inputs.sunset_time - timedelta(minutes=self.config.dusk_window_minutes)
+            if dusk_start <= inputs.now < inputs.sunset_time and inputs.lux < self.config.dusk_lux_threshold:
+                return self._result(inputs.current_position, self.config.night_close_position, "dusk_closing", sun_at_window)
+
+        # Sunset closing — fallback/ceiling. Fires regardless of lux (missing sensor,
+        # or light staying high past sunset) so blinds always close eventually.
         if self.config.enable_sunset_closing and inputs.sunset_time is not None:
             if inputs.now >= inputs.sunset_time:
                 return self._result(inputs.current_position, self.config.night_close_position, "sunset_closing", sun_at_window)

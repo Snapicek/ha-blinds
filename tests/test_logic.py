@@ -251,6 +251,61 @@ class TestDecisionEngine(unittest.TestCase):
         )
         self.assertNotEqual(res.reason, "pre_sunrise_closing")
 
+    # ── Dusk closing (lux-driven, before the hard sunset cutoff) ──────────────
+
+    def test_dusk_closing_fires_before_sunset_when_lux_drops(self) -> None:
+        """Inside the dusk window, low lux closes early — before sunset_time."""
+        engine = DecisionEngine(_cfg(enable_sunset_closing=True, dusk_lux_threshold=1000, dusk_window_minutes=60))
+        now = datetime(2026, 7, 1, 19, 45, 0)
+        sunset = datetime(2026, 7, 1, 20, 30, 0)  # 45 min before sunset, inside 60-min window
+        res = engine.evaluate(
+            DecisionInputs(now, 260, 5, 500, 20.0, 75, paused=False, sunset_time=sunset)
+        )
+        self.assertTrue(res.should_move)
+        self.assertEqual(res.reason, "dusk_closing")
+        self.assertEqual(res.target_position, 3)
+
+    def test_dusk_closing_does_not_fire_when_lux_still_high(self) -> None:
+        """Inside the dusk window but still bright — no early close."""
+        engine = DecisionEngine(_cfg(enable_sunset_closing=True, dusk_lux_threshold=1000, dusk_window_minutes=60))
+        now = datetime(2026, 7, 1, 19, 45, 0)
+        sunset = datetime(2026, 7, 1, 20, 30, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 260, 5, 8000, 20.0, 75, paused=False, sunset_time=sunset)
+        )
+        self.assertNotEqual(res.reason, "dusk_closing")
+
+    def test_dusk_closing_does_not_fire_outside_window(self) -> None:
+        """Low lux long before sunset (e.g. a cloudy afternoon) must not trigger dusk_closing."""
+        engine = DecisionEngine(_cfg(enable_sunset_closing=True, dusk_lux_threshold=1000, dusk_window_minutes=60))
+        now = datetime(2026, 7, 1, 14, 0, 0)
+        sunset = datetime(2026, 7, 1, 20, 30, 0)  # hours away — outside the 60-min dusk window
+        res = engine.evaluate(
+            DecisionInputs(now, 260, 5, 500, 20.0, 75, paused=False, sunset_time=sunset)
+        )
+        self.assertNotEqual(res.reason, "dusk_closing")
+
+    def test_sunset_closing_fallback_when_lux_missing(self) -> None:
+        """No lux sensor reading past sunset_time — still closes via the sunset_closing ceiling."""
+        engine = DecisionEngine(_cfg(enable_sunset_closing=True))
+        now = datetime(2026, 7, 1, 21, 0, 0)
+        sunset = datetime(2026, 7, 1, 20, 30, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 260, 5, None, 20.0, 75, paused=False, sunset_time=sunset)
+        )
+        self.assertEqual(res.reason, "sunset_closing")
+        self.assertEqual(res.target_position, 3)
+
+    def test_too_early_preempts_dusk_closing(self) -> None:
+        """Higher-priority too_early wins even when dusk_closing conditions are also met."""
+        engine = DecisionEngine(_cfg(enable_sunset_closing=True, earliest_open_hour=20, earliest_open_minute=0))
+        now = datetime(2026, 7, 1, 19, 45, 0)
+        sunset = datetime(2026, 7, 1, 20, 30, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 260, 5, 500, 20.0, 75, paused=False, sunset_time=sunset)
+        )
+        self.assertEqual(res.reason, "too_early")
+
     def test_blinds_closed_after_sunset_offset_window(self) -> None:
         """After sunset+offset, blinds should be closed (sunset_closing or pre_sunrise_closing)."""
         engine = DecisionEngine(_cfg(enable_sunset_closing=True))
