@@ -101,7 +101,7 @@ Applied only when sun is at the window:
 
 | Elevation | Target position |
 |---|---|
-| < 10° | 0% — very low sun, direct glare |
+| < 10° | min_position — very low sun, direct glare |
 | 10–25° | 50% — low angle, partial block |
 | ≥ 25° | 75% — overhead, open |
 

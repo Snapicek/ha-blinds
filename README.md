@@ -62,12 +62,12 @@ When the sun faces the window, slat angle is adjusted based on elevation:
 
 | Elevation | Position | Reason |
 |---|---|---|
-| < 10° | 0% (closed) | Direct eye-level glare |
+| < 10° | min_position (closed) | Direct eye-level glare |
 | 10–25° | 50% | Low angle — partial block |
 | ≥ 25° | 75% | High sun — open |
 
 ### High lux protection
-When lux exceeds the close threshold and the sun is at the window, blinds close to 0% after a debounce delay. Reopens automatically (via elevation tracking) when lux drops.
+When lux exceeds the close threshold and the sun is at the window, blinds close to `min_position` after a debounce delay. Reopens automatically (via elevation tracking) when lux drops.
 
 ### Heat protection *(optional)*
 During configured hours in summer, blinds close to a fixed position regardless of lux. Requires a temperature sensor and temperature above the threshold.
@@ -101,7 +101,8 @@ Options are split into four menus: **Thresholds**, **Timing**, **Sunset**, **Fea
 | `daytime_open_position` | 70% | Position when sun is not at window (morning/evening) |
 | `lux_low_threshold` | 5000 lx | Below this, sun is considered blocked (building, clouds) |
 | `daytime_cloudy_position` | 90% | Position when overcast (lux below low threshold) |
-| `movement_threshold` | 10% | Minimum position difference to trigger a move (reduces noise) |
+| `movement_threshold` | 5% | Minimum position difference to trigger a move (reduces noise) |
+| `min_position` | 3% | Motor never goes below this position (prevents slat flip on overshoot) |
 
 ### Timing
 
