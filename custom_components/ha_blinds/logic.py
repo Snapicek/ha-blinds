@@ -26,7 +26,8 @@ class DecisionConfig:
     summer_privacy_hour: int
     privacy_duration_minutes: int = 480
     night_close_position: int = 0
-    daytime_open_position: int = 70
+    daytime_open_position_summer: int = 60
+    daytime_open_position_winter: int = 70
     # Feature toggles
     enable_heat_protection: bool = True
     enable_high_lux_protection: bool = True
@@ -80,6 +81,9 @@ class DecisionEngine:
 
     def evaluate(self, inputs: DecisionInputs) -> DecisionResult:
         is_winter = inputs.now.month in (11, 12, 1, 2, 3)
+        daytime_open_position = (
+            self.config.daytime_open_position_winter if is_winter else self.config.daytime_open_position_summer
+        )
         sun_at_window = self._sun_at_window(inputs.sun_azimuth, inputs.sun_elevation)
 
         if inputs.paused:
@@ -142,7 +146,7 @@ class DecisionEngine:
         if sun_at_window:
             # Lux gate: if lux sensor shows low light, sun is blocked by obstacle
             if lux_is_low:
-                return self._result(inputs.current_position, self.config.daytime_open_position, "sun_blocked_by_obstacle", sun_at_window)
+                return self._result(inputs.current_position, daytime_open_position, "sun_blocked_by_obstacle", sun_at_window)
 
             # High lux protection: direct sun glare → close
             if self.config.enable_high_lux_protection and inputs.high_lux_since is not None:
@@ -171,7 +175,7 @@ class DecisionEngine:
             return self._result(inputs.current_position, self.config.daytime_cloudy_position, "daytime_cloudy", sun_at_window)
 
         # Sun not at window, normal light — open to let in daylight
-        return self._result(inputs.current_position, self.config.daytime_open_position, "daytime_open", sun_at_window)
+        return self._result(inputs.current_position, daytime_open_position, "daytime_open", sun_at_window)
 
     def _result(
         self,

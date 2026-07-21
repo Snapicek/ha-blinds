@@ -26,7 +26,8 @@ CONF_SUMMER_PRIVACY_HOUR = "summer_privacy_hour"
 CONF_PRIVACY_DURATION_MINUTES = "privacy_duration_minutes"
 CONF_MANUAL_OVERRIDE_MINUTES = "manual_override_minutes"
 CONF_NIGHT_CLOSE_POSITION = "night_close_position"
-CONF_DAYTIME_OPEN_POSITION = "daytime_open_position"
+CONF_DAYTIME_OPEN_POSITION_SUMMER = "daytime_open_position_summer"
+CONF_DAYTIME_OPEN_POSITION_WINTER = "daytime_open_position_winter"
 CONF_ZIGBEE_DELAY_SECONDS = "zigbee_delay_seconds"
 
 # Feature toggles - enable/disable specific rules
@@ -84,7 +85,8 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_ENABLE_SUN_ELEVATION_TRACKING: True,
     # Night close position: 0% (closed) or 100% (privacy mode)
     CONF_NIGHT_CLOSE_POSITION: 0,
-    CONF_DAYTIME_OPEN_POSITION: 70,
+    CONF_DAYTIME_OPEN_POSITION_SUMMER: 60,
+    CONF_DAYTIME_OPEN_POSITION_WINTER: 70,
     # Sunset/Sunrise feature
     CONF_ENABLE_SUNSET_CLOSING: False,
     CONF_SUNRISE_OFFSET_MINUTES: 0,
