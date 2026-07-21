@@ -90,9 +90,19 @@ class TestDecisionEngine(unittest.TestCase):
     # ── Daytime open (sun NOT at window) ─────────────────────────────────────
 
     def test_morning_sun_not_at_window_opens(self) -> None:
-        """Morning: sun in the east, window faces SW → daytime_open to 75%."""
+        """Morning: sun in the east, window faces SW → daytime_open to summer default (60%)."""
         # Window 240° ±60° covers 180–300°; azimuth 103° is outside → not at window
         now = datetime(2026, 6, 22, 9, 30, 0)
+        res = self.engine.evaluate(
+            DecisionInputs(now, 103, 42, 11000, 20.0, 0, paused=False)
+        )
+        self.assertTrue(res.should_move)
+        self.assertEqual(res.target_position, 60)
+        self.assertEqual(res.reason, "daytime_open")
+
+    def test_winter_sun_not_at_window_opens_to_winter_position(self) -> None:
+        """Same scenario in winter → daytime_open to winter default (70%)."""
+        now = datetime(2026, 12, 1, 9, 30, 0)
         res = self.engine.evaluate(
             DecisionInputs(now, 103, 42, 11000, 20.0, 0, paused=False)
         )
@@ -109,7 +119,7 @@ class TestDecisionEngine(unittest.TestCase):
         )
         # Still opens because sun is not at window
         self.assertEqual(res.reason, "daytime_open")
-        self.assertEqual(res.target_position, 70)
+        self.assertEqual(res.target_position, 60)
 
     # ── Sun at window — elevation tracking ───────────────────────────────────
 
@@ -212,7 +222,7 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 90, 15, 8000, 18.0, 0, paused=False, sunrise_time=sunrise)
         )
         self.assertEqual(res.reason, "daytime_open")
-        self.assertEqual(res.target_position, 70)
+        self.assertEqual(res.target_position, 60)
 
     def test_sunset_closes(self) -> None:
         engine = DecisionEngine(_cfg(enable_sunset_closing=True))
@@ -371,7 +381,7 @@ class TestDecisionEngine(unittest.TestCase):
             DecisionInputs(now, 230, 15, 2000, 22.0, 0, paused=False)
         )
         self.assertEqual(res.reason, "sun_blocked_by_obstacle")
-        self.assertEqual(res.target_position, 70)
+        self.assertEqual(res.target_position, 60)
 
     def test_cloudy_day_uses_cloudy_position(self) -> None:
         """Low lux, sun not at window → cloudy position."""
@@ -398,7 +408,7 @@ class TestDecisionEngine(unittest.TestCase):
         engine = DecisionEngine(_cfg(movement_threshold=5))
         now = datetime(2026, 7, 1, 12, 0, 0)
         res = engine.evaluate(
-            DecisionInputs(now, 90, 30, 15000, 20.0, 67, paused=False)
+            DecisionInputs(now, 90, 30, 15000, 20.0, 63, paused=False)
         )
         self.assertFalse(res.should_move)
 

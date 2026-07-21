@@ -73,7 +73,7 @@ With `max_step_per_tick = 20` and `tick_minutes = 5`, moving from 0% to 75% take
 7. night_close            — elevation < 0
                             UNLESS in sunset offset window (elevation < 0 but not yet sunset_time)
 8. [sun_at_window = True AND lux < lux_low_threshold]
-   sun_blocked_by_obstacle — open to daytime_open_position (sun behind building/clouds)
+   sun_blocked_by_obstacle — open to seasonal daytime_open_position (sun behind building/clouds)
 9. [sun_at_window = True AND lux >= lux_low_threshold (or lux unavailable)]
    a. direct_sun_high_lux — lux >= close_threshold, debounced
    b. peak_heat_hours     — summer + heat hours + enable_heat_protection
@@ -82,7 +82,7 @@ With `max_step_per_tick = 20` and `tick_minutes = 5`, moving from 0% to 75% take
 10. [sun_at_window = False AND lux < lux_low_threshold]
    daytime_cloudy         — open to daytime_cloudy_position (more light on overcast days)
 11. [sun_at_window = False]
-   daytime_open           — open to daytime_open_position
+   daytime_open           — open to daytime_open_position_summer or _winter, by season
 ```
 
 Rules 3–6 form the **night/offset window**. `dusk_closing` closes early when it's actually
