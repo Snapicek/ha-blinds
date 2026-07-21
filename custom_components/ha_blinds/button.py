@@ -8,8 +8,9 @@ from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
-from .const import CONF_DAYTIME_OPEN_POSITION, DOMAIN
+from .const import CONF_DAYTIME_OPEN_POSITION_SUMMER, CONF_DAYTIME_OPEN_POSITION_WINTER, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -96,7 +97,9 @@ class HaBlindsDaytimeOpenButton(HaBlindsBaseButton):
 
     @property
     def _position(self) -> int:
-        return self.coordinator._cfg_int(CONF_DAYTIME_OPEN_POSITION)
+        is_winter = dt_util.now().month in (11, 12, 1, 2, 3)
+        key = CONF_DAYTIME_OPEN_POSITION_WINTER if is_winter else CONF_DAYTIME_OPEN_POSITION_SUMMER
+        return self.coordinator._cfg_int(key)
 
     @property
     def name(self) -> str:
