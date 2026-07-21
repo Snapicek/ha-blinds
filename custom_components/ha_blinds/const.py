@@ -21,8 +21,8 @@ CONF_HEAT_START_HOUR = "heat_start_hour"
 CONF_HEAT_END_HOUR = "heat_end_hour"
 CONF_HEAT_POSITION = "heat_position"
 CONF_TEMP_THRESHOLD = "temp_threshold"
-CONF_WINTER_PRIVACY_HOUR = "winter_privacy_hour"
-CONF_SUMMER_PRIVACY_HOUR = "summer_privacy_hour"
+CONF_PRIVACY_LEAD_MINUTES = "privacy_lead_minutes"
+CONF_PRIVACY_POSITION = "privacy_position"
 CONF_PRIVACY_DURATION_MINUTES = "privacy_duration_minutes"
 CONF_MANUAL_OVERRIDE_MINUTES = "manual_override_minutes"
 CONF_NIGHT_CLOSE_POSITION = "night_close_position"
@@ -45,7 +45,6 @@ CONF_EARLIEST_OPEN_MINUTE = "earliest_open_minute"
 
 # Lux-driven daytime logic
 CONF_LUX_LOW_THRESHOLD = "lux_low_threshold"
-CONF_DAYTIME_CLOUDY_POSITION = "daytime_cloudy_position"
 CONF_MOVEMENT_THRESHOLD = "movement_threshold"
 CONF_MIN_POSITION = "min_position"
 
@@ -73,11 +72,11 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_HEAT_END_HOUR: 17,
     CONF_HEAT_POSITION: 20,
     CONF_TEMP_THRESHOLD: 24.0,
-    CONF_WINTER_PRIVACY_HOUR: 16,
-    CONF_SUMMER_PRIVACY_HOUR: 19,
+    CONF_PRIVACY_LEAD_MINUTES: 60,
+    CONF_PRIVACY_POSITION: 100,
     CONF_PRIVACY_DURATION_MINUTES: 480,
     CONF_MANUAL_OVERRIDE_MINUTES: 45,
-    CONF_ZIGBEE_DELAY_SECONDS: 0,
+    CONF_ZIGBEE_DELAY_SECONDS: 2,
     # Feature toggles
     CONF_ENABLE_HEAT_PROTECTION: True,
     CONF_ENABLE_HIGH_LUX_PROTECTION: True,
@@ -95,7 +94,6 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_EARLIEST_OPEN_MINUTE: 30,
     # Lux-driven daytime logic
     CONF_LUX_LOW_THRESHOLD: 5000,
-    CONF_DAYTIME_CLOUDY_POSITION: 90,
     CONF_MOVEMENT_THRESHOLD: 5,
     CONF_MIN_POSITION: 3,
     # Lux-driven dusk closing

@@ -24,7 +24,6 @@ from custom_components.ha_blinds.const import (
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
     CONF_MIN_POSITION,
-    CONF_SUMMER_PRIVACY_HOUR,
     CONF_TEMP_SENSOR,
     DEFAULTS,
 )
@@ -35,8 +34,8 @@ def _set_now(dt: datetime) -> None:
     coordinator_module.dt_util.now = lambda: dt
 
 
-def _sun_state(azimuth: float, elevation: float) -> ha_stubs.FakeState:
-    return ha_stubs.FakeState({"azimuth": azimuth, "elevation": elevation})
+def _sun_state(azimuth: float, elevation: float, **extra) -> ha_stubs.FakeState:
+    return ha_stubs.FakeState({"azimuth": azimuth, "elevation": elevation, **extra})
 
 
 def _cover_state(position: int) -> ha_stubs.FakeState:
@@ -167,11 +166,17 @@ class TestPausing(unittest.IsolatedAsyncioTestCase):
 
 class TestPrivacyHourTracking(unittest.IsolatedAsyncioTestCase):
     async def test_entering_privacy_hour_records_entry_time(self) -> None:
+        """Privacy hour is sunset-relative: within privacy_lead_minutes (default 60)
+        of the sun.sun-reported sunset, it should flip on."""
         controller = _controller({
             "cover.blind": _cover_state(75),
-            "sun.sun": _sun_state(90, 20),
+            "sun.sun": _sun_state(
+                90, 20,
+                next_setting=datetime(2026, 7, 1, 20, 30),
+                next_rising=datetime(2026, 7, 2, 4, 50),
+            ),
         })
-        now = datetime(2026, 7, 1, 20, 0)  # past default summer_privacy_hour=19
+        now = datetime(2026, 7, 1, 20, 0)  # 30 min before the 20:30 sunset
         _set_now(now)
         await controller._async_evaluate()
 
@@ -181,7 +186,11 @@ class TestPrivacyHourTracking(unittest.IsolatedAsyncioTestCase):
     async def test_entry_time_does_not_reset_on_later_ticks(self) -> None:
         controller = _controller({
             "cover.blind": _cover_state(0),
-            "sun.sun": _sun_state(90, 20),
+            "sun.sun": _sun_state(
+                90, 20,
+                next_setting=datetime(2026, 7, 1, 20, 30),
+                next_rising=datetime(2026, 7, 2, 4, 50),
+            ),
         })
         entered_at = datetime(2026, 7, 1, 20, 0)
         _set_now(entered_at)
@@ -192,19 +201,30 @@ class TestPrivacyHourTracking(unittest.IsolatedAsyncioTestCase):
         await controller._async_evaluate()
         self.assertEqual(controller._runtime.privacy_entered_at, entered_at)
 
-    async def test_exit_clears_entry_after_duration_expires_past_midnight(self) -> None:
-        """privacy_duration_minutes=480 (8h): enter at 20:00, expires 04:00 next day.
-        At that point the coordinator should clear privacy_entered_at."""
+    async def test_exit_clears_entry_once_next_days_sunset_is_far_away(self) -> None:
+        """Enter privacy the evening of July 1. The next morning, sun.sun now
+        reports a sunset many hours away (today's, July 2) — well outside the
+        privacy window — so the coordinator should clear the stale entry."""
         controller = _controller({
             "cover.blind": _cover_state(0),
-            "sun.sun": _sun_state(90, -10),
+            "sun.sun": _sun_state(
+                90, 20,
+                next_setting=datetime(2026, 7, 1, 20, 30),
+                next_rising=datetime(2026, 7, 2, 4, 50),
+            ),
         })
         entered_at = datetime(2026, 7, 1, 20, 0)
         _set_now(entered_at)
         await controller._async_evaluate()
         self.assertEqual(controller._runtime.privacy_entered_at, entered_at)
 
-        _set_now(entered_at + timedelta(hours=8, minutes=1))
+        # Morning of July 2: sunrise already happened, tonight's sunset is hours away.
+        controller.hass.states._states["sun.sun"] = _sun_state(
+            90, 40,
+            next_setting=datetime(2026, 7, 2, 20, 31),
+            next_rising=datetime(2026, 7, 3, 4, 51),
+        )
+        _set_now(datetime(2026, 7, 2, 10, 0))
         await controller._async_evaluate()
         self.assertIsNone(controller._runtime.privacy_entered_at)
         self.assertNotEqual(controller._runtime.last_reason, "privacy_hour")

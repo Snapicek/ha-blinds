@@ -38,13 +38,13 @@ from .const import (
     CONF_DAYTIME_OPEN_POSITION_WINTER,
     CONF_NIGHT_CLOSE_POSITION,
     CONF_PRIVACY_DURATION_MINUTES,
-    CONF_SUMMER_PRIVACY_HOUR,
+    CONF_PRIVACY_LEAD_MINUTES,
+    CONF_PRIVACY_POSITION,
     CONF_SUNRISE_OFFSET_MINUTES,
     CONF_SUNSET_OFFSET_MINUTES,
     CONF_EARLIEST_OPEN_HOUR,
     CONF_EARLIEST_OPEN_MINUTE,
     CONF_LUX_LOW_THRESHOLD,
-    CONF_DAYTIME_CLOUDY_POSITION,
     CONF_DUSK_LUX_THRESHOLD,
     CONF_DUSK_WINDOW_MINUTES,
     CONF_MIN_POSITION,
@@ -55,7 +55,6 @@ from .const import (
     CONF_WINDOW_AZIMUTH,
     CONF_WINDOW_VIEW_LEFT,
     CONF_WINDOW_VIEW_RIGHT,
-    CONF_WINTER_PRIVACY_HOUR,
     CONF_ZIGBEE_DELAY_SECONDS,
     DEFAULTS,
     DOMAIN,
@@ -314,8 +313,9 @@ class HaBlindsController:
             elif result.reason == "privacy_hour" and self._runtime.privacy_entered_at is None:
                 self._runtime.privacy_entered_at = now
             elif result.reason != "privacy_hour" and self._runtime.privacy_entered_at is not None:
-                privacy_hour = self._cfg_int(CONF_WINTER_PRIVACY_HOUR) if is_winter else self._cfg_int(CONF_SUMMER_PRIVACY_HOUR)
-                if now.hour < privacy_hour:
+                lead_minutes = self._cfg_int(CONF_PRIVACY_LEAD_MINUTES)
+                privacy_start = (sunset_time - timedelta(minutes=lead_minutes)) if sunset_time is not None else None
+                if privacy_start is None or now < privacy_start:
                     self._runtime.privacy_entered_at = None
 
             # Update high lux tracking
@@ -457,8 +457,8 @@ class HaBlindsController:
             heat_end_hour=self._cfg_int(CONF_HEAT_END_HOUR),
             heat_position=self._cfg_int(CONF_HEAT_POSITION),
             temp_threshold=self._cfg_float(CONF_TEMP_THRESHOLD),
-            winter_privacy_hour=self._cfg_int(CONF_WINTER_PRIVACY_HOUR),
-            summer_privacy_hour=self._cfg_int(CONF_SUMMER_PRIVACY_HOUR),
+            privacy_lead_minutes=self._cfg_int(CONF_PRIVACY_LEAD_MINUTES),
+            privacy_position=self._cfg_int(CONF_PRIVACY_POSITION),
             privacy_duration_minutes=self._cfg_int(CONF_PRIVACY_DURATION_MINUTES),
             night_close_position=self._cfg_int(CONF_NIGHT_CLOSE_POSITION),
             daytime_open_position_summer=self._cfg_int(CONF_DAYTIME_OPEN_POSITION_SUMMER),
@@ -473,7 +473,6 @@ class HaBlindsController:
             earliest_open_hour=self._cfg_int(CONF_EARLIEST_OPEN_HOUR),
             earliest_open_minute=self._cfg_int(CONF_EARLIEST_OPEN_MINUTE),
             lux_low_threshold=self._cfg_float(CONF_LUX_LOW_THRESHOLD),
-            daytime_cloudy_position=self._cfg_int(CONF_DAYTIME_CLOUDY_POSITION),
             movement_threshold=self._cfg_int(CONF_MOVEMENT_THRESHOLD),
             min_position=self._cfg_int(CONF_MIN_POSITION),
             dusk_lux_threshold=self._cfg_float(CONF_DUSK_LUX_THRESHOLD),

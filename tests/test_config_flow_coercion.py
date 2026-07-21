@@ -25,8 +25,6 @@ from custom_components.ha_blinds.const import (
     CONF_HEAT_END_HOUR,
     CONF_HEAT_START_HOUR,
     CONF_NIGHT_CLOSE_POSITION,
-    CONF_SUMMER_PRIVACY_HOUR,
-    CONF_WINTER_PRIVACY_HOUR,
     DEFAULTS,
 )
 
@@ -155,10 +153,10 @@ class TestConvertTimeInputs(unittest.TestCase):
         self.assertEqual(user_input[CONF_HEAT_END_HOUR], 17)
 
     def test_missing_keys_are_skipped(self) -> None:
-        user_input = {CONF_WINTER_PRIVACY_HOUR: "16:00"}
+        user_input = {CONF_HEAT_START_HOUR: "16:00"}
         cf._convert_time_inputs(user_input)
-        self.assertEqual(user_input, {CONF_WINTER_PRIVACY_HOUR: 16})
-        self.assertNotIn(CONF_SUMMER_PRIVACY_HOUR, user_input)
+        self.assertEqual(user_input, {CONF_HEAT_START_HOUR: 16})
+        self.assertNotIn(CONF_HEAT_END_HOUR, user_input)
 
     def test_earliest_open_hh_mm_splits_into_hour_and_minute(self) -> None:
         user_input = {CONF_EARLIEST_OPEN_HOUR: "07:30"}
@@ -218,8 +216,8 @@ class TestSanitizeOptionDefaults(unittest.TestCase):
         self.assertEqual(sanitized[CONF_HEAT_START_HOUR], DEFAULTS[CONF_HEAT_START_HOUR])
 
     def test_out_of_range_hour_falls_back_to_hard_default(self) -> None:
-        sanitized = cf._sanitize_option_defaults(_defaults_with(**{CONF_WINTER_PRIVACY_HOUR: 27}))
-        self.assertEqual(sanitized[CONF_WINTER_PRIVACY_HOUR], DEFAULTS[CONF_WINTER_PRIVACY_HOUR])
+        sanitized = cf._sanitize_option_defaults(_defaults_with(**{CONF_HEAT_END_HOUR: 27}))
+        self.assertEqual(sanitized[CONF_HEAT_END_HOUR], DEFAULTS[CONF_HEAT_END_HOUR])
 
     def test_night_close_position_legacy_label(self) -> None:
         sanitized = cf._sanitize_option_defaults(_defaults_with(**{CONF_NIGHT_CLOSE_POSITION: "100 (Privacy Mode)"}))

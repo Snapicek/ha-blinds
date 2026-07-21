@@ -22,12 +22,12 @@ class DecisionConfig:
     heat_end_hour: int
     heat_position: int
     temp_threshold: float
-    winter_privacy_hour: int
-    summer_privacy_hour: int
     privacy_duration_minutes: int = 480
     night_close_position: int = 0
     daytime_open_position_summer: int = 60
     daytime_open_position_winter: int = 70
+    privacy_lead_minutes: int = 60
+    privacy_position: int = 100
     # Feature toggles
     enable_heat_protection: bool = True
     enable_high_lux_protection: bool = True
@@ -42,7 +42,6 @@ class DecisionConfig:
     earliest_open_minute: int = 30
     # Lux-driven daytime logic
     lux_low_threshold: float = 5000
-    daytime_cloudy_position: int = 90
     movement_threshold: int = 5
     min_position: int = 3
     # Lux-driven dusk closing
@@ -118,15 +117,19 @@ class DecisionEngine:
             if inputs.now < inputs.sunrise_time and inputs.now.hour < 12:
                 return self._result(inputs.current_position, self.config.night_close_position, "pre_sunrise_closing", sun_at_window)
 
-        # Privacy hour
-        if self.config.enable_privacy_hour and inputs.privacy_entered_at is not None:
-            privacy_end_time = inputs.privacy_entered_at + timedelta(minutes=self.config.privacy_duration_minutes)
-            if inputs.now < privacy_end_time:
-                return self._result(inputs.current_position, self.config.night_close_position, "privacy_hour", sun_at_window)
-
-        if self.config.enable_privacy_hour and inputs.privacy_entered_at is None:
-            privacy_hour = self.config.winter_privacy_hour if is_winter else self.config.summer_privacy_hour
-            if inputs.now.hour >= privacy_hour:
+        # Privacy hour: sunset-relative flip. `privacy_lead_minutes` before actual
+        # sunset, flip to `privacy_position` (light passes through, but nobody can
+        # see in). At actual sunset, close fully like every other closing rule.
+        # `privacy_duration_minutes` is hysteresis: once entered, stays active even
+        # if sunset_time later becomes unavailable (e.g. sun.sun glitch).
+        if self.config.enable_privacy_hour and inputs.sunset_time is not None:
+            privacy_start = inputs.sunset_time - timedelta(minutes=self.config.privacy_lead_minutes)
+            still_in_hysteresis = inputs.privacy_entered_at is not None and inputs.now < (
+                inputs.privacy_entered_at + timedelta(minutes=self.config.privacy_duration_minutes)
+            )
+            if inputs.now >= privacy_start or still_in_hysteresis:
+                if inputs.now < inputs.sunset_time:
+                    return self._result(inputs.current_position, self.config.privacy_position, "privacy_hour", sun_at_window)
                 return self._result(inputs.current_position, self.config.night_close_position, "privacy_hour", sun_at_window)
 
         # Night close (safety) — suppressed during the sunset offset window so blinds
@@ -164,17 +167,13 @@ class DecisionEngine:
 
             # Sun elevation tracking: adjust slat angle based on sun height
             if self.config.enable_sun_elevation_tracking:
-                target = self._base_sun_target(inputs.sun_elevation)
+                target = self._base_sun_target(inputs.sun_elevation, daytime_open_position)
                 return self._result(inputs.current_position, target, "sun_elevation_tracking", sun_at_window)
 
             # Elevation tracking disabled — hold
             return DecisionResult(False, inputs.current_position, "sun_tracking_disabled", sun_at_window)
 
-        # Sun not at window — check if cloudy (low lux)
-        if lux_is_low:
-            return self._result(inputs.current_position, self.config.daytime_cloudy_position, "daytime_cloudy", sun_at_window)
-
-        # Sun not at window, normal light — open to let in daylight
+        # Sun not at window — open to let in daylight
         return self._result(inputs.current_position, daytime_open_position, "daytime_open", sun_at_window)
 
     def _result(
@@ -209,14 +208,15 @@ class DecisionEngine:
         return azimuth >= left or azimuth <= right
 
     @staticmethod
-    def _base_sun_target(elevation: float) -> int:
+    def _base_sun_target(elevation: float, daytime_open_position: int) -> int:
         """Slat position when sun is directly at the window.
 
-        0% = closed, 75% = most open (horizontal slats).
-        Low elevation = direct eye-level glare → close more.
+        0% = closed, daytime_open_position = most open (horizontal slats).
+        Low elevation = direct eye-level glare → close more. Never opens
+        further than the configured daytime_open_position ceiling.
         """
         if elevation < 10:
             return 0   # Very low sun — close completely
         if elevation < 25:
-            return 50  # Low sun — half open
-        return 75      # High sun — open
+            return min(50, daytime_open_position)  # Low sun — half open
+        return daytime_open_position                # High sun — open to ceiling
