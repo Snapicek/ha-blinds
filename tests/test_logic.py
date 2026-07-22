@@ -18,13 +18,10 @@ def _cfg(**overrides) -> DecisionConfig:
         heat_end_hour=17,
         heat_position=20,
         temp_threshold=24.0,
-        winter_privacy_hour=16,
-        summer_privacy_hour=19,
         night_close_position=0,
         earliest_open_hour=7,
         earliest_open_minute=30,
         lux_low_threshold=5000,
-        daytime_cloudy_position=90,
         movement_threshold=5,
     )
     base.update(overrides)
@@ -78,14 +75,36 @@ class TestDecisionEngine(unittest.TestCase):
 
     # ── Privacy hour ─────────────────────────────────────────────────────────
 
-    def test_privacy_hour_closes(self) -> None:
-        now = datetime(2026, 12, 1, 17, 0, 0)
+    def test_privacy_hour_flips_before_sunset(self) -> None:
+        """Within privacy_lead_minutes of sunset, but before it → flip to privacy_position."""
+        sunset = datetime(2026, 12, 1, 17, 0, 0)
+        now = sunset - timedelta(minutes=30)
         res = self.engine.evaluate(
-            DecisionInputs(now, 220, 5, 10000, 21.0, 75, paused=False)
+            DecisionInputs(now, 220, 5, 10000, 21.0, 75, paused=False, sunset_time=sunset)
+        )
+        self.assertTrue(res.should_move)
+        self.assertEqual(res.target_position, 100)
+        self.assertEqual(res.reason, "privacy_hour")
+
+    def test_privacy_hour_closes_at_sunset(self) -> None:
+        """At/after actual sunset → close fully, same as every other closing rule."""
+        sunset = datetime(2026, 12, 1, 17, 0, 0)
+        now = sunset
+        res = self.engine.evaluate(
+            DecisionInputs(now, 220, -1, 10000, 21.0, 100, paused=False, sunset_time=sunset)
         )
         self.assertTrue(res.should_move)
         self.assertEqual(res.target_position, 3)
         self.assertEqual(res.reason, "privacy_hour")
+
+    def test_privacy_hour_does_not_fire_before_lead_window(self) -> None:
+        """More than privacy_lead_minutes before sunset → not privacy_hour yet."""
+        sunset = datetime(2026, 12, 1, 17, 0, 0)
+        now = sunset - timedelta(minutes=90)
+        res = self.engine.evaluate(
+            DecisionInputs(now, 220, 20, 10000, 21.0, 75, paused=False, sunset_time=sunset)
+        )
+        self.assertNotEqual(res.reason, "privacy_hour")
 
     # ── Daytime open (sun NOT at window) ─────────────────────────────────────
 
@@ -133,13 +152,23 @@ class TestDecisionEngine(unittest.TestCase):
         self.assertEqual(res.reason, "sun_elevation_tracking")
 
     def test_high_sun_at_window_opens(self) -> None:
-        """Sun at 70° elevation at window → open to 75% (overhead)."""
+        """Sun at 70° elevation at window → open to daytime_open_position ceiling (60% summer)."""
         now = datetime(2026, 7, 1, 9, 0, 0)
         res = self.engine.evaluate(
             DecisionInputs(now, 230, 70, 30000, 18.0, 50, paused=False)
         )
-        self.assertEqual(res.target_position, 75)
+        self.assertEqual(res.target_position, 60)
         self.assertEqual(res.reason, "sun_elevation_tracking")
+
+    def test_high_sun_at_window_never_exceeds_daytime_ceiling(self) -> None:
+        """High elevation must never open further than daytime_open_position, even in winter."""
+        engine = DecisionEngine(_cfg(daytime_open_position_winter=70))
+        now = datetime(2026, 12, 1, 9, 0, 0)
+        res = engine.evaluate(
+            DecisionInputs(now, 230, 70, 30000, 18.0, 50, paused=False)
+        )
+        self.assertEqual(res.target_position, 70)
+        self.assertLessEqual(res.target_position, 70)
 
     # ── High lux protection ──────────────────────────────────────────────────
 
@@ -383,15 +412,15 @@ class TestDecisionEngine(unittest.TestCase):
         self.assertEqual(res.reason, "sun_blocked_by_obstacle")
         self.assertEqual(res.target_position, 60)
 
-    def test_cloudy_day_uses_cloudy_position(self) -> None:
-        """Low lux, sun not at window → cloudy position."""
-        engine = DecisionEngine(_cfg(daytime_cloudy_position=90, lux_low_threshold=5000))
+    def test_cloudy_day_uses_daytime_open(self) -> None:
+        """Low lux, sun not at window → daytime_open (the cloudy-position rule was removed)."""
+        engine = DecisionEngine(_cfg(lux_low_threshold=5000))
         now = datetime(2026, 7, 1, 12, 0, 0)
         res = engine.evaluate(
             DecisionInputs(now, 90, 45, 3000, 20.0, 0, paused=False)
         )
-        self.assertEqual(res.reason, "daytime_cloudy")
-        self.assertEqual(res.target_position, 90)
+        self.assertEqual(res.reason, "daytime_open")
+        self.assertEqual(res.target_position, 60)
 
     def test_lux_none_does_not_trigger_sun_blocked(self) -> None:
         """When lux is None (sensor unavailable), fall back to azimuth-based logic."""

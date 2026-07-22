@@ -69,7 +69,7 @@ With `max_step_per_tick = 20` and `tick_minutes = 5`, moving from 0% to 75% take
 3. dusk_closing           — sunset - dusk_window <= now < sunset AND lux < dusk_lux_threshold
 4. sunset_closing         — now >= actual_sunset + sunset_offset (fallback ceiling, ignores lux)
 5. pre_sunrise_closing    — now < actual_sunrise + sunrise_offset AND hour < 12
-6. privacy_hour           — time-based or duration-based
+6. privacy_hour           — sunset-relative window, two phases (see below)
 7. night_close            — elevation < 0
                             UNLESS in sunset offset window (elevation < 0 but not yet sunset_time)
 8. [sun_at_window = True AND lux < lux_low_threshold]
@@ -77,11 +77,9 @@ With `max_step_per_tick = 20` and `tick_minutes = 5`, moving from 0% to 75% take
 9. [sun_at_window = True AND lux >= lux_low_threshold (or lux unavailable)]
    a. direct_sun_high_lux — lux >= close_threshold, debounced
    b. peak_heat_hours     — summer + heat hours + enable_heat_protection
-   c. sun_elevation_tracking — elevation-based slat position
+   c. sun_elevation_tracking — elevation-based slat position, capped at daytime_open_position
    d. sun_tracking_disabled  — tracking off, hold position
-10. [sun_at_window = False AND lux < lux_low_threshold]
-   daytime_cloudy         — open to daytime_cloudy_position (more light on overcast days)
-11. [sun_at_window = False]
+10. [sun_at_window = False]
    daytime_open           — open to daytime_open_position_summer or _winter, by season
 ```
 
@@ -91,6 +89,13 @@ direct sun disappears well before the astronomical sunset. `sunset_closing` rema
 ceiling: if the lux sensor is missing or stays bright past sunset, it closes anyway. The guards
 on rules 4 and 6 ensure `pre_sunrise_closing` and `night_close` do not fire prematurely during
 the sunset offset window (between actual sunset and `sunset + offset`).
+
+`privacy_hour` has two phases, both keyed off `sunset_time` (not a fixed clock hour):
+
+- `sunset_time - privacy_lead_minutes <= now < sunset_time` → flip to `privacy_position` (default 100%): light passes through, but nobody can see in.
+- `now >= sunset_time` → close fully to `night_close_position` (default 0%), same as every other closing rule.
+
+`privacy_duration_minutes` is hysteresis only — it keeps the rule engaged if `sunset_time` briefly becomes unavailable (e.g. a `sun.sun` glitch), not a fixed "expire after N hours" timer. Because `sunset_time` self-corrects across midnight (see below), the rule naturally stays engaged all night without it.
 
 ### Sun-at-window geometry
 
@@ -108,14 +113,14 @@ Applied only when sun is at the window:
 | Elevation | Target position |
 |---|---|
 | < 10° | min_position — very low sun, direct glare |
-| 10–25° | 50% — low angle, partial block |
-| ≥ 25° | 75% — overhead, open |
+| 10–25° | min(50%, daytime_open_position) — low angle, partial block |
+| ≥ 25° | daytime_open_position (60% summer / 70% winter) — overhead, open, never exceeds the daytime ceiling |
 
 ### Winter vs summer
 
 Winter months: November, December, January, February, March (`now.month in (11, 12, 1, 2, 3)`).
 
-Heat protection and privacy hour use separate thresholds for winter/summer.
+Heat protection uses separate thresholds for winter/summer. `privacy_hour` is sunset-relative and season-agnostic — no separate winter/summer setting is needed since `sunset_time` already accounts for the season.
 
 ### High lux debounce
 

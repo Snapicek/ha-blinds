@@ -31,13 +31,13 @@ from .const import (
     CONF_MAX_STEP_PER_TICK,
     CONF_NIGHT_CLOSE_POSITION,
     CONF_PRIVACY_DURATION_MINUTES,
-    CONF_SUMMER_PRIVACY_HOUR,
+    CONF_PRIVACY_LEAD_MINUTES,
+    CONF_PRIVACY_POSITION,
     CONF_SUNRISE_OFFSET_MINUTES,
     CONF_SUNSET_OFFSET_MINUTES,
     CONF_EARLIEST_OPEN_HOUR,
     CONF_EARLIEST_OPEN_MINUTE,
     CONF_LUX_LOW_THRESHOLD,
-    CONF_DAYTIME_CLOUDY_POSITION,
     CONF_DUSK_LUX_THRESHOLD,
     CONF_DUSK_WINDOW_MINUTES,
     CONF_MIN_POSITION,
@@ -48,7 +48,6 @@ from .const import (
     CONF_WINDOW_AZIMUTH,
     CONF_WINDOW_VIEW_LEFT,
     CONF_WINDOW_VIEW_RIGHT,
-    CONF_WINTER_PRIVACY_HOUR,
     CONF_ZIGBEE_DELAY_SECONDS,
     DEFAULTS,
     DOMAIN,
@@ -59,7 +58,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def _convert_time_inputs(user_input: dict[str, Any]) -> None:
     """Convert HH:MM time strings to integer hours in-place."""
-    for time_key in [CONF_HEAT_START_HOUR, CONF_HEAT_END_HOUR, CONF_WINTER_PRIVACY_HOUR, CONF_SUMMER_PRIVACY_HOUR]:
+    for time_key in [CONF_HEAT_START_HOUR, CONF_HEAT_END_HOUR]:
         if time_key in user_input:
             user_input[time_key] = _coerce_hour_value(user_input[time_key])
     # Convert earliest open HH:MM to hour + minute
@@ -197,7 +196,8 @@ def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
         CONF_EARLIEST_OPEN_HOUR,
         CONF_EARLIEST_OPEN_MINUTE,
         CONF_LUX_LOW_THRESHOLD,
-        CONF_DAYTIME_CLOUDY_POSITION,
+        CONF_PRIVACY_LEAD_MINUTES,
+        CONF_PRIVACY_POSITION,
         CONF_MIN_POSITION,
         CONF_MOVEMENT_THRESHOLD,
         CONF_DUSK_LUX_THRESHOLD,
@@ -229,15 +229,6 @@ def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
         sanitized[CONF_HEAT_END_HOUR] = _coerce_hour_value(sanitized.get(CONF_HEAT_END_HOUR))
     except (TypeError, ValueError):
         sanitized[CONF_HEAT_END_HOUR] = int(DEFAULTS[CONF_HEAT_END_HOUR])
-    try:
-        sanitized[CONF_WINTER_PRIVACY_HOUR] = _coerce_hour_value(sanitized.get(CONF_WINTER_PRIVACY_HOUR))
-    except (TypeError, ValueError):
-        sanitized[CONF_WINTER_PRIVACY_HOUR] = int(DEFAULTS[CONF_WINTER_PRIVACY_HOUR])
-    try:
-        sanitized[CONF_SUMMER_PRIVACY_HOUR] = _coerce_hour_value(sanitized.get(CONF_SUMMER_PRIVACY_HOUR))
-    except (TypeError, ValueError):
-        sanitized[CONF_SUMMER_PRIVACY_HOUR] = int(DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])
-
     try:
         sanitized[CONF_NIGHT_CLOSE_POSITION] = _coerce_night_close_position(
             sanitized.get(CONF_NIGHT_CLOSE_POSITION)
@@ -301,8 +292,8 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_HEAT_END_HOUR, default=_hour_default_label(defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR]), DEFAULTS[CONF_HEAT_END_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_HEAT_POSITION, default=defaults[CONF_HEAT_POSITION]): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
             vol.Required(CONF_TEMP_THRESHOLD, default=defaults[CONF_TEMP_THRESHOLD]): vol.All(vol.Coerce(float), vol.Range(min=10, max=40)),
-            vol.Required(CONF_WINTER_PRIVACY_HOUR, default=_hour_default_label(defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR]), DEFAULTS[CONF_WINTER_PRIVACY_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=_hour_default_label(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR]), DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
+            vol.Required(CONF_PRIVACY_LEAD_MINUTES, default=defaults[CONF_PRIVACY_LEAD_MINUTES]): sel.NumberSelector(sel.NumberSelectorConfig(min=0, max=180, step=5, mode=sel.NumberSelectorMode.BOX)),
+            vol.Required(CONF_PRIVACY_POSITION, default=defaults[CONF_PRIVACY_POSITION]): vol.All(vol.Coerce(int), vol.Range(min=50, max=100)),
             vol.Required(CONF_PRIVACY_DURATION_MINUTES, default=defaults[CONF_PRIVACY_DURATION_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=60, max=1440)),
             vol.Required(CONF_MANUAL_OVERRIDE_MINUTES, default=defaults[CONF_MANUAL_OVERRIDE_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=5, max=240)),
             vol.Required(
@@ -540,8 +531,14 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 CONF_TEMP_THRESHOLD,
                 default=_coerce_float_default(defaults.get(CONF_TEMP_THRESHOLD), float(DEFAULTS[CONF_TEMP_THRESHOLD])),
             ): vol.All(vol.Coerce(float), vol.Range(min=10, max=40)),
-            vol.Required(CONF_WINTER_PRIVACY_HOUR, default=_hour_default_label(defaults.get(CONF_WINTER_PRIVACY_HOUR, DEFAULTS[CONF_WINTER_PRIVACY_HOUR]), DEFAULTS[CONF_WINTER_PRIVACY_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
-            vol.Required(CONF_SUMMER_PRIVACY_HOUR, default=_hour_default_label(defaults.get(CONF_SUMMER_PRIVACY_HOUR, DEFAULTS[CONF_SUMMER_PRIVACY_HOUR]), DEFAULTS[CONF_SUMMER_PRIVACY_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
+            vol.Required(
+                CONF_PRIVACY_LEAD_MINUTES,
+                default=_coerce_int_default(defaults.get(CONF_PRIVACY_LEAD_MINUTES), int(DEFAULTS[CONF_PRIVACY_LEAD_MINUTES])),
+            ): sel.NumberSelector(sel.NumberSelectorConfig(min=0, max=180, step=5, mode=sel.NumberSelectorMode.BOX)),
+            vol.Required(
+                CONF_PRIVACY_POSITION,
+                default=_coerce_int_default(defaults.get(CONF_PRIVACY_POSITION), int(DEFAULTS[CONF_PRIVACY_POSITION])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=50, max=100)),
             vol.Required(CONF_NIGHT_CLOSE_POSITION, default=_night_position_default_label(defaults.get(CONF_NIGHT_CLOSE_POSITION, DEFAULTS[CONF_NIGHT_CLOSE_POSITION]), DEFAULTS[CONF_NIGHT_CLOSE_POSITION])): sel.SelectSelector(sel.SelectSelectorConfig(options=["0 (Closed)", "100 (Privacy Mode)"], mode="dropdown")),
             vol.Required(
                 CONF_DAYTIME_OPEN_POSITION_SUMMER,
@@ -555,10 +552,6 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 CONF_LUX_LOW_THRESHOLD,
                 default=_coerce_int_default(defaults.get(CONF_LUX_LOW_THRESHOLD), int(DEFAULTS[CONF_LUX_LOW_THRESHOLD])),
             ): vol.All(vol.Coerce(int), vol.Range(min=500, max=30000)),
-            vol.Required(
-                CONF_DAYTIME_CLOUDY_POSITION,
-                default=_coerce_int_default(defaults.get(CONF_DAYTIME_CLOUDY_POSITION), int(DEFAULTS[CONF_DAYTIME_CLOUDY_POSITION])),
-            ): vol.All(vol.Coerce(int), vol.Range(min=50, max=100)),
             vol.Required(
                 CONF_MOVEMENT_THRESHOLD,
                 default=_coerce_int_default(defaults.get(CONF_MOVEMENT_THRESHOLD), int(DEFAULTS[CONF_MOVEMENT_THRESHOLD])),

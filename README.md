@@ -53,18 +53,17 @@ Blinds never open before `earliest_open_hour`:`earliest_open_minute` (default 07
 When the sun is above the horizon but not yet facing the window (morning, evening), blinds open to `daytime_open_position_summer` (default 60%) or `daytime_open_position_winter` (default 70%), depending on the season (winter = months 11–3), to let in diffuse light.
 
 ### Lux-driven daytime logic
-The lux sensor now actively influences daytime decisions:
+The lux sensor actively influences daytime decisions:
 - **Sun blocked by obstacle**: When sun azimuth points at the window but lux is below `lux_low_threshold` (default 5000), the sun is blocked by a building or clouds — blinds open to the seasonal daytime open position instead of closing.
-- **Cloudy day**: When sun is not at window and lux is below `lux_low_threshold`, blinds open wider to `daytime_cloudy_position` (default 90%) to let in more diffuse light.
 
 ### Sun elevation tracking
-When the sun faces the window, slat angle is adjusted based on elevation:
+When the sun faces the window, slat angle is adjusted based on elevation. It never opens further than the seasonal `daytime_open_position`:
 
 | Elevation | Position | Reason |
 |---|---|---|
 | < 10° | min_position (closed) | Direct eye-level glare |
-| 10–25° | 50% | Low angle — partial block |
-| ≥ 25° | 75% | High sun — open |
+| 10–25° | min(50%, daytime_open_position) | Low angle — partial block |
+| ≥ 25° | daytime_open_position (60% summer / 70% winter) | High sun — open, capped at the daytime ceiling |
 
 ### High lux protection
 When lux exceeds the close threshold and the sun is at the window, blinds close to `min_position` after a debounce delay. Reopens automatically (via elevation tracking) when lux drops.
@@ -78,7 +77,7 @@ Closes blinds at `actual_sunset + sunset_offset_minutes`. Keeps them closed unti
 Before the hard cutoff, **dusk closing** watches lux instead: within `dusk_window_minutes` of sunset, if lux drops below `dusk_lux_threshold`, blinds close early. This makes closing feel natural for windows shaded early by a neighboring building or terrain — direct light can disappear well before astronomical sunset. `sunset_closing` still applies afterwards as a fallback in case the lux sensor is missing or stays bright.
 
 ### Privacy hour *(optional)*
-From a configured evening hour, blinds close and stay closed for `privacy_duration_minutes`. Separate thresholds for winter and summer.
+Sunset-relative, two phases: `privacy_lead_minutes` before actual sunset, blinds flip to `privacy_position` (default 100% — lets light through, blocks visibility in). At actual sunset, they close fully. `privacy_duration_minutes` is hysteresis for a brief `sun.sun` glitch, not a fixed timer — the rule naturally stays engaged all night since `sunset_time` self-corrects across midnight.
 
 ### Manual override
 Any manual cover movement pauses the automation for `manual_override_minutes`. Each subsequent manual move resets the timer. Resume earlier via the **Automation Enabled** switch or the `ha_blinds.resume` service.
@@ -97,13 +96,12 @@ Options are split into four menus: **Thresholds**, **Timing**, **Sunset**, **Fea
 | `heat_end_hour` | 17 | Heat protection end hour |
 | `heat_position` | 20% | Blind position during heat protection |
 | `temp_threshold` | 24.0°C | Temperature above which heat protection activates |
-| `winter_privacy_hour` | 16:00 | Privacy hour start (Nov–Mar) |
-| `summer_privacy_hour` | 19:00 | Privacy hour start (Apr–Oct) |
+| `privacy_lead_minutes` | 60 | Minutes before actual sunset that blinds flip to `privacy_position` |
+| `privacy_position` | 100% | Position during the privacy window before sunset |
 | `night_close_position` | 0% | Position for night/privacy/sunset close (0 or 100) |
 | `daytime_open_position_summer` | 60% | Position when sun is not at window (morning/evening), Apr–Oct |
 | `daytime_open_position_winter` | 70% | Position when sun is not at window (morning/evening), Nov–Mar |
 | `lux_low_threshold` | 5000 lx | Below this, sun is considered blocked (building, clouds) |
-| `daytime_cloudy_position` | 90% | Position when overcast (lux below low threshold) |
 | `movement_threshold` | 5% | Minimum position difference to trigger a move (reduces noise) |
 | `min_position` | 3% | Motor never goes below this position (prevents slat flip on overshoot) |
 
