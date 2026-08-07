@@ -24,6 +24,7 @@ from .const import (
     CONF_HEAT_START_HOUR,
     CONF_LUX_CLOSE_SUMMER,
     CONF_LUX_CLOSE_WINTER,
+    CONF_LUX_RELEASE_MINUTES,
     CONF_LUX_SENSOR,
     CONF_DAYTIME_OPEN_POSITION_SUMMER,
     CONF_DAYTIME_OPEN_POSITION_WINTER,
@@ -183,6 +184,7 @@ def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
         CONF_LUX_CLOSE_SUMMER,
         CONF_LUX_CLOSE_WINTER,
         CONF_DEBOUNCE_MINUTES,
+        CONF_LUX_RELEASE_MINUTES,
         CONF_DAYTIME_OPEN_POSITION_SUMMER,
         CONF_DAYTIME_OPEN_POSITION_WINTER,
         CONF_TICK_MINUTES,
@@ -286,6 +288,7 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_LUX_CLOSE_SUMMER, default=defaults[CONF_LUX_CLOSE_SUMMER]): vol.All(vol.Coerce(int), vol.Range(min=1000, max=120000)),
             vol.Required(CONF_LUX_CLOSE_WINTER, default=defaults[CONF_LUX_CLOSE_WINTER]): vol.All(vol.Coerce(int), vol.Range(min=500, max=120000)),
             vol.Required(CONF_DEBOUNCE_MINUTES, default=defaults[CONF_DEBOUNCE_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+            vol.Required(CONF_LUX_RELEASE_MINUTES, default=defaults[CONF_LUX_RELEASE_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=0, max=60)),
             vol.Required(CONF_TICK_MINUTES, default=defaults[CONF_TICK_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
             vol.Required(CONF_MAX_STEP_PER_TICK, default=defaults[CONF_MAX_STEP_PER_TICK]): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
             vol.Required(CONF_HEAT_START_HOUR, default=_hour_default_label(defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR]), DEFAULTS[CONF_HEAT_START_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
@@ -594,6 +597,10 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 CONF_DEBOUNCE_MINUTES,
                 default=_coerce_int_default(defaults.get(CONF_DEBOUNCE_MINUTES), int(DEFAULTS[CONF_DEBOUNCE_MINUTES])),
             ): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
+            vol.Required(
+                CONF_LUX_RELEASE_MINUTES,
+                default=_coerce_int_default(defaults.get(CONF_LUX_RELEASE_MINUTES), int(DEFAULTS[CONF_LUX_RELEASE_MINUTES])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=60)),
             vol.Required(
                 CONF_MANUAL_OVERRIDE_MINUTES,
                 default=_coerce_int_default(

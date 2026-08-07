@@ -126,7 +126,7 @@ Heat protection uses separate thresholds for winter/summer. `privacy_hour` is su
 
 `high_lux_since` is set by the coordinator the first time lux exceeds `lux_close_*`. The engine only closes when `now - high_lux_since >= debounce_minutes`. This prevents rapid oscillation on transient lux spikes.
 
-When lux drops, `high_lux_since` is cleared and elevation tracking resumes on the next tick.
+When lux drops below `lux_close_*`, it is not cleared immediately — a noisy illuminance sensor (direct sun flickering through railings/branches/leaves) can dip for a single tick while still genuinely glaring through the window. The coordinator tracks `low_lux_since` the same way and only clears `high_lux_since` once lux has stayed below threshold continuously for `lux_release_minutes`. A brief single-tick dip is absorbed; a sustained drop still releases the close normally and elevation tracking resumes.
 
 ## State tracking
 
@@ -137,6 +137,7 @@ When lux drops, `high_lux_since` is cleared and elevation tracking resumes on th
 | `paused_until` | Datetime until automation is paused; persisted to `.storage` across restarts |
 | `privacy_entered_at` | When privacy hour was first triggered (used for duration window) |
 | `high_lux_since` | When lux first exceeded close threshold (debounce timer) |
+| `low_lux_since` | When lux first dropped back below close threshold (release-grace timer for `high_lux_since`) |
 | `last_reason` | Most recent decision reason string |
 | `last_target` | Most recent commanded position |
 | `sun_at_window` | Boolean exposed to sensors |

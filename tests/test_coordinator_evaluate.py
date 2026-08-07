@@ -256,7 +256,9 @@ class TestHighLuxTracking(unittest.IsolatedAsyncioTestCase):
         await controller._async_evaluate()
         self.assertEqual(controller._runtime.high_lux_since, first)
 
-    async def test_high_lux_since_clears_when_lux_drops(self) -> None:
+    async def test_high_lux_since_clears_after_sustained_drop(self) -> None:
+        """A drop below threshold only releases once it has held for
+        lux_release_minutes (default 10) — not on the first low reading."""
         controller = _controller({
             "cover.blind": _cover_state(75),
             "sun.sun": _sun_state(230, 45),
@@ -268,9 +270,41 @@ class TestHighLuxTracking(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(controller._runtime.high_lux_since)
 
         controller.hass.states._states["sensor.lux"] = ha_stubs.FakeState({}, state="500")
-        _set_now(first + timedelta(minutes=10))
+        _set_now(first + timedelta(minutes=5))
+        await controller._async_evaluate()
+        self.assertIsNotNone(controller._runtime.high_lux_since)  # still within grace
+
+        _set_now(first + timedelta(minutes=16))
         await controller._async_evaluate()
         self.assertIsNone(controller._runtime.high_lux_since)
+
+    async def test_high_lux_since_survives_brief_single_tick_dip(self) -> None:
+        """A noisy sensor's single low reading, within lux_release_minutes of
+        the drop, must not wipe out an already-confirmed high_lux_since."""
+        controller = _controller({
+            "cover.blind": _cover_state(75),
+            "sun.sun": _sun_state(230, 45),
+            "sensor.lux": ha_stubs.FakeState({}, state="80000"),
+        })
+        first = datetime(2026, 7, 1, 13, 0)
+        _set_now(first)
+        await controller._async_evaluate()
+        self.assertEqual(controller._runtime.high_lux_since, first)
+
+        # One noisy low tick, still well within the 10-minute release grace.
+        controller.hass.states._states["sensor.lux"] = ha_stubs.FakeState({}, state="500")
+        _set_now(first + timedelta(minutes=5))
+        await controller._async_evaluate()
+        self.assertEqual(controller._runtime.high_lux_since, first)
+        self.assertEqual(controller._runtime.low_lux_since, first + timedelta(minutes=5))
+
+        # Lux recovers before the grace period elapses — low_lux_since resets,
+        # high_lux_since was never touched.
+        controller.hass.states._states["sensor.lux"] = ha_stubs.FakeState({}, state="80000")
+        _set_now(first + timedelta(minutes=8))
+        await controller._async_evaluate()
+        self.assertEqual(controller._runtime.high_lux_since, first)
+        self.assertIsNone(controller._runtime.low_lux_since)
 
 
 class TestExceptionHandling(unittest.IsolatedAsyncioTestCase):
