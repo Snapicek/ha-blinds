@@ -31,6 +31,7 @@ from .const import (
     CONF_HEAT_START_HOUR,
     CONF_LUX_CLOSE_SUMMER,
     CONF_LUX_CLOSE_WINTER,
+    CONF_LUX_RELEASE_MINUTES,
     CONF_LUX_SENSOR,
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
@@ -69,6 +70,7 @@ class _RuntimeState:
     paused_until: datetime | None = None
     privacy_entered_at: datetime | None = None
     high_lux_since: datetime | None = None
+    low_lux_since: datetime | None = None
     last_reason: str = "startup"
     last_target: int | None = None
     last_decision_time: datetime | None = None
@@ -318,17 +320,27 @@ class HaBlindsController:
                 if privacy_start is None or now < privacy_start:
                     self._runtime.privacy_entered_at = None
 
-            # Update high lux tracking
+            # Update high lux tracking. A single reading below threshold does not
+            # immediately clear high_lux_since — noisy lux sensors (direct sun
+            # flickering through railings/branches) can dip for one tick while
+            # still genuinely glaring through the window. Only release once lux
+            # has stayed below threshold continuously for lux_release_minutes.
             if not enable_high_lux:
                 self._runtime.high_lux_since = None
+                self._runtime.low_lux_since = None
             elif lux is not None:
                 close_threshold = self._cfg_float(CONF_LUX_CLOSE_WINTER if is_winter else CONF_LUX_CLOSE_SUMMER)
                 if lux >= close_threshold:
                     self._runtime.high_lux_since = self._runtime.high_lux_since or now
+                    self._runtime.low_lux_since = None
                 else:
-                    self._runtime.high_lux_since = None
+                    self._runtime.low_lux_since = self._runtime.low_lux_since or now
+                    release_minutes = self._cfg_int(CONF_LUX_RELEASE_MINUTES)
+                    if now - self._runtime.low_lux_since >= timedelta(minutes=release_minutes):
+                        self._runtime.high_lux_since = None
             else:
                 self._runtime.high_lux_since = None
+                self._runtime.low_lux_since = None
 
             if not result.should_move:
                 self._update_state_attributes()

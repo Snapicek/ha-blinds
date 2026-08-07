@@ -15,6 +15,7 @@ CONF_WINDOW_VIEW_RIGHT = "window_view_right"
 CONF_LUX_CLOSE_SUMMER = "lux_close_summer"
 CONF_LUX_CLOSE_WINTER = "lux_close_winter"
 CONF_DEBOUNCE_MINUTES = "debounce_minutes"
+CONF_LUX_RELEASE_MINUTES = "lux_release_minutes"
 CONF_TICK_MINUTES = "tick_minutes"
 CONF_MAX_STEP_PER_TICK = "max_step_per_tick"
 CONF_HEAT_START_HOUR = "heat_start_hour"
@@ -66,6 +67,7 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_LUX_CLOSE_SUMMER: 35000,
     CONF_LUX_CLOSE_WINTER: 20000,
     CONF_DEBOUNCE_MINUTES: 5,
+    CONF_LUX_RELEASE_MINUTES: 10,
     CONF_TICK_MINUTES: 5,
     CONF_MAX_STEP_PER_TICK: 10,
     CONF_HEAT_START_HOUR: 10,
