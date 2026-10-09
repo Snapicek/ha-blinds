@@ -111,6 +111,7 @@ Options are split into four menus: **Thresholds**, **Timing**, **Sunset**, **Fea
 |---|---|---|
 | `tick_minutes` | 5 | How often the decision engine runs |
 | `max_step_per_tick` | 10% | Maximum position change per tick (smooth movement) |
+| `reversal_backlash_percent` | 0% | Travel the motor spends only tilting slats when it changes direction. Added to the first move after a reversal (time-based covers). 0 = off |
 | `debounce_minutes` | 5 | Delay before high-lux close triggers |
 | `manual_override_minutes` | 45 | How long manual override pauses automation |
 

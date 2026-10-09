@@ -57,6 +57,28 @@ else:
 
 With `max_step_per_tick = 20` and `tick_minutes = 5`, moving from 0% to 75% takes 4 ticks (20 minutes).
 
+### Reversal backlash
+
+Tilt blinds on a time-based cover (e.g. ESPHome `time_based`) lose travel when the
+motor changes direction: the first part of the run only tilts the slats, but the
+cover still counts it as movement. `reversal_backlash_percent` (default 0 = off)
+compensates:
+
+- `_RuntimeState.last_direction` remembers the last move (+1 up, -1 down) and
+  `backlash_offset` holds `real - reported` position.
+- `_real_position()` turns the reported position into the real one before it is
+  passed to `logic.py`. Reported 0 or 100 is an endstop and clears the offset.
+- `_command_position()` turns the real step target into the command: on a
+  reversal it adds the backlash in the move direction, and it subtracts the
+  current offset. The command never goes below `min_position` (unless the target
+  does); when that clamp leaves the blind short, the offset keeps tracking it and
+  no command is sent while the floor is already reached.
+- A detected manual move clears the offset and sets the direction from the move.
+- State is runtime-only; a restart starts from offset 0, direction unknown.
+
+Example, backlash 10, last move up, real = reported = 60, target 40: command 30,
+real 40, offset 10. Next target 20: command 10.
+
 ## logic.py
 
 `DecisionEngine.evaluate()` is a pure function: same inputs always produce the same output. No HA imports, fully unit-testable.

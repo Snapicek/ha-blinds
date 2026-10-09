@@ -24,6 +24,7 @@ from custom_components.ha_blinds.const import (
     CONF_MANUAL_OVERRIDE_MINUTES,
     CONF_MAX_STEP_PER_TICK,
     CONF_MIN_POSITION,
+    CONF_REVERSAL_BACKLASH_PERCENT,
     CONF_TEMP_SENSOR,
     DEFAULTS,
 )
@@ -305,6 +306,89 @@ class TestHighLuxTracking(unittest.IsolatedAsyncioTestCase):
         await controller._async_evaluate()
         self.assertEqual(controller._runtime.high_lux_since, first)
         self.assertIsNone(controller._runtime.low_lux_since)
+
+
+class TestReversalBacklash(unittest.IsolatedAsyncioTestCase):
+    """Slat tilt eats travel on a direction reversal; compensate for it."""
+
+    def _night_controller(self, position: int, last_direction: int) -> HaBlindsController:
+        controller = _controller(
+            {"cover.blind": _cover_state(position), "sun.sun": _sun_state(230, -5)},
+            options={CONF_MAX_STEP_PER_TICK: 20, CONF_REVERSAL_BACKLASH_PERCENT: 10},
+        )
+        controller._runtime.last_direction = last_direction
+        return controller
+
+    async def _tick(self, controller: HaBlindsController, reported: int) -> int | None:
+        controller.hass.states._states["cover.blind"] = _cover_state(reported)
+        controller.hass.services.calls.clear()
+        await controller._async_evaluate()
+        calls = controller.hass.services.calls
+        return calls[0]["data"]["position"] if calls else None
+
+    async def test_reversal_adds_backlash_then_tracks_offset(self) -> None:
+        """Up → down: first command overshoots by 10, later ones keep the offset.
+        Near the bottom the min_position floor wins and the blind stays short."""
+        controller = self._night_controller(60, last_direction=1)
+        _set_now(datetime(2026, 7, 1, 10, 0))
+
+        self.assertEqual(await self._tick(controller, 60), 30)
+        self.assertEqual(controller._runtime.last_target, 40)
+        self.assertEqual(controller._runtime.backlash_offset, 10)
+
+        # Cover reports 30, real blind is at 40 → next real target 20 → command 10.
+        self.assertEqual(await self._tick(controller, 30), 10)
+        self.assertEqual(controller._runtime.last_target, 20)
+
+        # Real 20 → min_position 3 would need command -7; floor holds it at 3,
+        # so the blind really stops at 13.
+        self.assertEqual(await self._tick(controller, 10), 3)
+        self.assertEqual(controller._runtime.backlash_offset, 10)
+
+        # Already at the floor: no pointless command every tick.
+        self.assertIsNone(await self._tick(controller, 3))
+
+        # Morning, up again (reversal): from real 13 to 50 → command 50, offset gone.
+        await controller.async_set_position(50)
+        self.assertEqual(controller.hass.services.calls[-1]["data"]["position"], 50)
+        self.assertEqual(controller._runtime.backlash_offset, 0)
+
+    async def test_same_direction_gets_no_backlash(self) -> None:
+        controller = self._night_controller(60, last_direction=-1)
+        _set_now(datetime(2026, 7, 1, 10, 0))
+        self.assertEqual(await self._tick(controller, 60), 40)
+        self.assertEqual(controller._runtime.backlash_offset, 0)
+
+    async def test_unknown_direction_gets_no_backlash(self) -> None:
+        controller = self._night_controller(60, last_direction=0)
+        _set_now(datetime(2026, 7, 1, 10, 0))
+        self.assertEqual(await self._tick(controller, 60), 40)
+        self.assertEqual(controller._runtime.last_direction, -1)
+
+    async def test_backlash_disabled_by_default(self) -> None:
+        controller = _controller({"cover.blind": _cover_state(60), "sun.sun": _sun_state(230, -5)})
+        controller._runtime.last_direction = 1
+        _set_now(datetime(2026, 7, 1, 10, 0))
+        await controller._async_evaluate()
+        self.assertEqual(controller.hass.services.calls[0]["data"]["position"], 50)
+
+    async def test_offset_shifts_current_position_seen_by_logic(self) -> None:
+        """Reported 30 after a reversed down move is really 40: night close
+        steps from 40, so the next command is 20 - 10 = 10, not 30 - 20."""
+        controller = self._night_controller(30, last_direction=-1)
+        controller._runtime.backlash_offset = 10
+        _set_now(datetime(2026, 7, 1, 10, 0))
+        self.assertEqual(await self._tick(controller, 30), 10)
+        self.assertEqual(controller._runtime.last_target, 20)
+
+    async def test_set_position_up_after_down_adds_backlash(self) -> None:
+        controller = self._night_controller(0, last_direction=-1)
+        _set_now(datetime(2026, 7, 1, 10, 0))
+        await controller.async_set_position(50)
+        self.assertEqual(controller.hass.services.calls[0]["data"]["position"], 60)
+        self.assertEqual(controller._runtime.last_target, 50)
+        self.assertEqual(controller._runtime.backlash_offset, -10)
+        self.assertEqual(controller._real_position(60), 50)
 
 
 class TestExceptionHandling(unittest.IsolatedAsyncioTestCase):

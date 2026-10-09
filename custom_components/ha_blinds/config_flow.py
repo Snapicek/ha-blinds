@@ -50,6 +50,7 @@ from .const import (
     CONF_WINDOW_VIEW_LEFT,
     CONF_WINDOW_VIEW_RIGHT,
     CONF_ZIGBEE_DELAY_SECONDS,
+    CONF_REVERSAL_BACKLASH_PERCENT,
     DEFAULTS,
     DOMAIN,
 )
@@ -193,6 +194,7 @@ def _sanitize_option_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
         CONF_PRIVACY_DURATION_MINUTES,
         CONF_MANUAL_OVERRIDE_MINUTES,
         CONF_ZIGBEE_DELAY_SECONDS,
+        CONF_REVERSAL_BACKLASH_PERCENT,
         CONF_SUNSET_OFFSET_MINUTES,
         CONF_SUNRISE_OFFSET_MINUTES,
         CONF_EARLIEST_OPEN_HOUR,
@@ -291,6 +293,7 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_LUX_RELEASE_MINUTES, default=defaults[CONF_LUX_RELEASE_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=0, max=60)),
             vol.Required(CONF_TICK_MINUTES, default=defaults[CONF_TICK_MINUTES]): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
             vol.Required(CONF_MAX_STEP_PER_TICK, default=defaults[CONF_MAX_STEP_PER_TICK]): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
+            vol.Required(CONF_REVERSAL_BACKLASH_PERCENT, default=defaults[CONF_REVERSAL_BACKLASH_PERCENT]): vol.All(vol.Coerce(int), vol.Range(min=0, max=30)),
             vol.Required(CONF_HEAT_START_HOUR, default=_hour_default_label(defaults.get(CONF_HEAT_START_HOUR, DEFAULTS[CONF_HEAT_START_HOUR]), DEFAULTS[CONF_HEAT_START_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_HEAT_END_HOUR, default=_hour_default_label(defaults.get(CONF_HEAT_END_HOUR, DEFAULTS[CONF_HEAT_END_HOUR]), DEFAULTS[CONF_HEAT_END_HOUR])): sel.SelectSelector(sel.SelectSelectorConfig(options=[f"{i:02d}:00" for i in range(24)], mode="dropdown")),
             vol.Required(CONF_HEAT_POSITION, default=defaults[CONF_HEAT_POSITION]): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
@@ -593,6 +596,13 @@ class HaBlindsOptionsFlow(config_entries.OptionsFlow):
                 CONF_MAX_STEP_PER_TICK,
                 default=_coerce_int_default(defaults.get(CONF_MAX_STEP_PER_TICK), int(DEFAULTS[CONF_MAX_STEP_PER_TICK])),
             ): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
+            vol.Required(
+                CONF_REVERSAL_BACKLASH_PERCENT,
+                default=_coerce_int_default(
+                    defaults.get(CONF_REVERSAL_BACKLASH_PERCENT),
+                    int(DEFAULTS[CONF_REVERSAL_BACKLASH_PERCENT]),
+                ),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=30)),
             vol.Required(
                 CONF_DEBOUNCE_MINUTES,
                 default=_coerce_int_default(defaults.get(CONF_DEBOUNCE_MINUTES), int(DEFAULTS[CONF_DEBOUNCE_MINUTES])),
