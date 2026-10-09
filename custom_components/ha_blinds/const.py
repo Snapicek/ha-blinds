@@ -30,6 +30,8 @@ CONF_NIGHT_CLOSE_POSITION = "night_close_position"
 CONF_DAYTIME_OPEN_POSITION_SUMMER = "daytime_open_position_summer"
 CONF_DAYTIME_OPEN_POSITION_WINTER = "daytime_open_position_winter"
 CONF_ZIGBEE_DELAY_SECONDS = "zigbee_delay_seconds"
+# Extra travel (%) eaten by slat tilt when the motor reverses direction
+CONF_REVERSAL_BACKLASH_PERCENT = "reversal_backlash_percent"
 
 # Feature toggles - enable/disable specific rules
 CONF_ENABLE_HEAT_PROTECTION = "enable_heat_protection"
@@ -79,6 +81,7 @@ DEFAULTS: dict[str, int | float | bool] = {
     CONF_PRIVACY_DURATION_MINUTES: 480,
     CONF_MANUAL_OVERRIDE_MINUTES: 45,
     CONF_ZIGBEE_DELAY_SECONDS: 2,
+    CONF_REVERSAL_BACKLASH_PERCENT: 0,
     # Feature toggles
     CONF_ENABLE_HEAT_PROTECTION: True,
     CONF_ENABLE_HIGH_LUX_PROTECTION: True,

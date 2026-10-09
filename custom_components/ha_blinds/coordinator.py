@@ -41,6 +41,7 @@ from .const import (
     CONF_PRIVACY_DURATION_MINUTES,
     CONF_PRIVACY_LEAD_MINUTES,
     CONF_PRIVACY_POSITION,
+    CONF_REVERSAL_BACKLASH_PERCENT,
     CONF_SUNRISE_OFFSET_MINUTES,
     CONF_SUNSET_OFFSET_MINUTES,
     CONF_EARLIEST_OPEN_HOUR,
@@ -76,6 +77,10 @@ class _RuntimeState:
     last_decision_time: datetime | None = None
     error_count: int = 0
     sun_at_window: bool = False
+    # Reversal backlash tracking: last move direction (+1 up, -1 down, 0 unknown)
+    # and real_position - reported_position caused by slat tilt on reversals.
+    last_direction: int = 0
+    backlash_offset: int = 0
 
 
 class HaBlindsController:
@@ -146,6 +151,10 @@ class HaBlindsController:
         if event_ctx.parent_id in self._last_command_context_ids or event_ctx.id in self._last_command_context_ids:
             return
 
+        # Someone else moved the blind: our backlash bookkeeping no longer holds.
+        self._runtime.backlash_offset = 0
+        self._runtime.last_direction = 1 if new_pos > old_pos else -1
+
         _LOGGER.info(
             "Manual cover movement detected on %s (position %s→%s), pausing/extending automation for %s minutes",
             self._cfg(CONF_COVER_ENTITY),
@@ -189,6 +198,13 @@ class HaBlindsController:
     async def async_set_position(self, position: int) -> None:
         """Set all covers to a specific position and pause automation."""
         await self.async_pause()
+        command = position
+        cover_state = self.hass.states.get(str(self._cfg(CONF_COVER_ENTITY)))
+        reported = cover_state.attributes.get("current_position") if cover_state is not None else None
+        if reported is not None:
+            current = self._real_position(int(reported))
+            if position != current:
+                command = self._command_position(int(reported), current, position)
         zigbee_delay = self._cfg_float(CONF_ZIGBEE_DELAY_SECONDS)
         self._last_command_context_ids.clear()
         for i, entity in enumerate(self._all_cover_entities()):
@@ -199,7 +215,7 @@ class HaBlindsController:
             await self.hass.services.async_call(
                 "cover",
                 "set_cover_position",
-                {"entity_id": entity, "position": position},
+                {"entity_id": entity, "position": command},
                 context=ctx,
                 blocking=False,
             )
@@ -271,7 +287,8 @@ class HaBlindsController:
             self._runtime.error_count = 0
             self._engine.config = self._decision_config()
 
-            current_position = int(cover_state.attributes.get("current_position", 75))
+            reported_position = int(cover_state.attributes.get("current_position", 75))
+            current_position = self._real_position(reported_position)
             sun_azimuth = float(sun_state.attributes.get("azimuth", 0.0))
             sun_elevation = float(sun_state.attributes.get("elevation", -90.0))
 
@@ -352,6 +369,12 @@ class HaBlindsController:
                 target = min(target, current_position + step)
             else:
                 target = max(target, current_position - step)
+            command = self._command_position(reported_position, current_position, target)
+            if command == reported_position:
+                # Already at the min_position floor; the blind cannot go further.
+                self._runtime.last_target = target
+                self._update_state_attributes()
+                return
 
             zigbee_delay = self._cfg_float(CONF_ZIGBEE_DELAY_SECONDS)
             self._last_command_context_ids.clear()
@@ -363,17 +386,18 @@ class HaBlindsController:
                 await self.hass.services.async_call(
                     "cover",
                     "set_cover_position",
-                    {"entity_id": entity, "position": target},
+                    {"entity_id": entity, "position": command},
                     context=ctx,
                     blocking=False,
                 )
             self._runtime.last_target = target
             _LOGGER.debug(
-                "HA Blinds entry=%s reason=%s current=%s target=%s covers=%s sun_at_window=%s lux=%s temp=%s",
+                "HA Blinds entry=%s reason=%s current=%s target=%s command=%s covers=%s sun_at_window=%s lux=%s temp=%s",
                 self.entry.entry_id,
                 result.reason,
                 current_position,
                 target,
+                command,
                 self._all_cover_entities(),
                 result.sun_at_window,
                 lux,
@@ -386,6 +410,43 @@ class HaBlindsController:
             if self._runtime.error_count <= 3:
                 # Only log full traceback for first few errors
                 _LOGGER.debug("Error traceback:", exc_info=True)
+
+    def _real_position(self, reported: int) -> int:
+        """Translate the cover's reported position into the real blind position.
+
+        Time-based covers count slat-tilt travel after a reversal as movement,
+        so the reported position drifts by backlash_offset. Endstops (0/100)
+        are mechanical, so there reported == real and the drift is cleared.
+        """
+        if reported <= 0 or reported >= 100:
+            self._runtime.backlash_offset = 0
+            return max(0, min(100, reported))
+        return max(0, min(100, reported + self._runtime.backlash_offset))
+
+    def _command_position(self, reported: int, current: int, target: int) -> int:
+        """Return the position to send so the real blind ends at target.
+
+        On a direction reversal the motor first spends reversal_backlash_percent
+        of travel tilting the slats, so that much is added to the move. The
+        command never goes below min_position (slat-flip guard) unless the
+        target itself does; if that clamp leaves the blind short, the offset
+        keeps tracking where it really is.
+        """
+        direction = 1 if target > current else -1
+        backlash = max(0, self._cfg_int(CONF_REVERSAL_BACKLASH_PERCENT))
+        extra = backlash if self._runtime.last_direction == -direction else 0
+        floor = min(self._cfg_int(CONF_MIN_POSITION), target)
+        command = max(floor, min(100, target - (current - reported) + direction * extra))
+        if (command - reported) * direction <= 0:
+            # Floor clamp leaves no travel in the wanted direction: stay put.
+            return reported
+        self._runtime.last_direction = direction
+        if command <= 0 or command >= 100:
+            self._runtime.backlash_offset = 0
+        else:
+            real = current + (command - reported) - self._runtime.last_direction * extra
+            self._runtime.backlash_offset = max(0, min(100, real)) - command
+        return command
 
     def _update_state_attributes(self) -> None:
         """Notify entities to refresh from runtime state."""
@@ -605,6 +666,8 @@ class HaBlindsController:
             "last_decision_time": self._runtime.last_decision_time.isoformat() if self._runtime.last_decision_time else None,
             "error_count": self._runtime.error_count,
             "sun_at_window": self._runtime.sun_at_window,
+            "last_direction": self._runtime.last_direction,
+            "backlash_offset": self._runtime.backlash_offset,
         }
 
     def async_add_listener(self, callback) -> Callable:

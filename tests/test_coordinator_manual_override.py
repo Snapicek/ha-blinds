@@ -191,5 +191,21 @@ class TestManualOverrideDetection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(controller.hass.created_tasks, [])
 
 
+    async def test_manual_move_resets_backlash_tracking(self) -> None:
+        controller = _controller()
+        controller._listener_armed = True
+        controller._runtime.backlash_offset = 10
+        controller._runtime.last_direction = -1
+        _set_now(datetime(2026, 7, 1, 12, 0))
+
+        event = FakeEvent({
+            "old_state": _cover_state(40),
+            "new_state": _cover_state(75, context=ha_stubs.FakeContext(id="manual-move-2")),
+        })
+        controller._on_cover_state_changed(event)
+        self.assertEqual(controller._runtime.backlash_offset, 0)
+        self.assertEqual(controller._runtime.last_direction, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
